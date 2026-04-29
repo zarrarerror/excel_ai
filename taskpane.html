@@ -740,6 +740,16 @@ let _officeInfo = null;
 let _officeInitDone = false;
 let _domReady = false;
 
+// Catch the "Office.js has not fully loaded" uncaught error from Edge tracking prevention
+window.addEventListener('error', function(e) {
+  if (e && e.message && e.message.indexOf('Office.js') !== -1) {
+    e.preventDefault();
+    e.stopPropagation();
+    _officeInitDone = true;
+    if (_domReady && !window._appStarted) _onBothReady();
+  }
+}, true);
+
 try {
   if (typeof Office !== 'undefined' && Office.onReady) {
     Office.onReady(function(info) {
@@ -798,13 +808,15 @@ const storage = {
 };
 
 // ── Called once BOTH Office and DOM are ready ──
+window._appStarted = false;
 function _onBothReady() {
+  if (window._appStarted) return;
+  window._appStarted = true;
   try {
     if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
       officeReady = true;
     } else {
-      // Outside Excel or host unknown — still allow UI to work
-      officeReady = true;
+      officeReady = true; // allow UI regardless
     }
   } catch(e) {
     officeReady = true;
@@ -813,7 +825,7 @@ function _onBothReady() {
   loadSettings();
 }
 
-// NOTE: _domReady = true is set at the bottom of the script after all DOM setup
+// NOTE: _domReady = true and timeout fallback are set at the bottom of the script
 
 // ── DOM references ──
 const messagesEl   = document.getElementById('messages');
@@ -1128,6 +1140,11 @@ async function handleSend() {
 // ── All DOM refs and listeners ready — trigger init ──
 _domReady = true;
 if (_officeInitDone) _onBothReady();
+
+// Fallback: if Office.js never fires (blocked by tracking prevention), start UI after 2s
+setTimeout(function() {
+  if (!window._appStarted) _onBothReady();
+}, 2000);
 
 function hasValidConfig() {
   const p = cfg.provider;
@@ -1862,27 +1879,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     showTyping(false);
 
-    // Add assistant message to history
-    messages.push(assistantMsg);
-
-    // Check for tool calls
-    const toolCalls = assistantMsg.tool_calls;
-
-    if (!toolCalls || toolCalls.length === 0) {
-      // Pure text response — show it and end
-      const text = assistantMsg.content || '(No response)';
-      if (text.trim()) addMessage('agent', text);
-      break;
-    }
-
-    // Process each tool call
-    let taskDone = false;
-
-    for (const tc of toolCalls) {
-      if (stopRequested) break;
-
-      const toolName = tc.function.name;
-      let toolArgs = {};
-
-      try {
-        toolArgs = JSON.pa
+    // Add assistant message to hi
