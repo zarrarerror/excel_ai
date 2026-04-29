@@ -1,0 +1,9 @@
+run = "python3 -m http.server 5000"
+
+[deployment]
+deploymentTarget = "static"
+publicDir = "."
+
+[[ports]]
+localPort = 5000
+externalPort = 80
