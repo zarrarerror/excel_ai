@@ -876,7 +876,8 @@ document.getElementById('test-conn-btn').addEventListener('click', async () => {
   btn.disabled = true;
   try {
     const result = await callAI([{ role: 'user', content: 'Reply with only: OK' }]);
-    showNotif('✅ Connection OK: ' + result.slice(0, 40), 'success');
+    const resultText = typeof result === 'string' ? result : (result.content || JSON.stringify(result));
+    showNotif('✅ Connection OK: ' + resultText.slice(0, 40), 'success');
   } catch(e) {
     showNotif('❌ ' + (e.message || 'Connection failed'), 'fail');
   }
@@ -1880,11 +1881,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
 // ── Auto-resize textarea on input ──
 inputEl.addEventListener('keyup', () => {
-  inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
-});
-
-</script>
-
-
-</bod
+  inputEl.style
