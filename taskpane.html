@@ -735,6 +735,30 @@ Example commands:<br/>
 //            write/formula/format/chart/sheet/sort tools
 // ═══════════════════════════════════════════════════════════════
 
+// ── MUST BE FIRST: Register Office.onReady immediately so office.js doesn't throw ──
+let _officeInfo = null;
+let _officeInitDone = false;
+let _domReady = false;
+
+try {
+  if (typeof Office !== 'undefined' && Office.onReady) {
+    Office.onReady(function(info) {
+      _officeInfo = info;
+      _officeInitDone = true;
+      if (_domReady) _onBothReady();
+    });
+  } else if (typeof Office !== 'undefined') {
+    Office.initialize = function() {
+      _officeInitDone = true;
+      if (_domReady) _onBothReady();
+    };
+  } else {
+    _officeInitDone = true;
+  }
+} catch(e) {
+  _officeInitDone = true;
+}
+
 // ── PDF.js worker setup ──
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -773,51 +797,23 @@ const storage = {
   }
 };
 
-// ── Office.js init — safe wrapper that never crashes the page ──
-function initOffice() {
+// ── Called once BOTH Office and DOM are ready ──
+function _onBothReady() {
   try {
-    if (typeof Office === 'undefined') {
-      setStatus('error');
-      addMessage('system', '⚠️ Office.js failed to load. Try reloading the add-in.');
-      return;
-    }
-    // Support both onReady (modern) and initialize (legacy)
-    if (Office.onReady) {
-      Office.onReady(function(info) {
-        try {
-          if (info && info.host === Office.HostType.Excel) {
-            officeReady = true;
-            setStatus('ready');
-            loadSettings();
-          } else if (!info || !info.host) {
-            // Loaded outside Excel (e.g. browser preview) — still allow UI
-            setStatus('ready');
-            loadSettings();
-          } else {
-            setStatus('error');
-            addMessage('system', '⚠️ This add-in requires Microsoft Excel.');
-          }
-        } catch(e) {
-          // Office host check failed — still try to run
-          officeReady = true;
-          setStatus('ready');
-          loadSettings();
-        }
-      });
+    if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
+      officeReady = true;
     } else {
-      Office.initialize = function() {
-        officeReady = true;
-        setStatus('ready');
-        loadSettings();
-      };
+      // Outside Excel or host unknown — still allow UI to work
+      officeReady = true;
     }
   } catch(e) {
-    setStatus('error');
-    addMessage('system', '⚠️ Office.js error: ' + e.message);
+    officeReady = true;
   }
+  setStatus('ready');
+  loadSettings();
 }
 
-// NOTE: initOffice() is called AFTER all DOM refs and listeners are set up below
+// NOTE: _domReady = true is set at the bottom of the script after all DOM setup
 
 // ── DOM references ──
 const messagesEl   = document.getElementById('messages');
@@ -1129,8 +1125,9 @@ async function handleSend() {
   setStatus('ready');
 }
 
-// ── Init Office AFTER all DOM refs and listeners are ready ──
-initOffice();
+// ── All DOM refs and listeners ready — trigger init ──
+_domReady = true;
+if (_officeInitDone) _onBothReady();
 
 function hasValidConfig() {
   const p = cfg.provider;
@@ -1873,4 +1870,19 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     if (!toolCalls || toolCalls.length === 0) {
       // Pure text response — show it and end
-      const text = assistantMsg.content || 
+      const text = assistantMsg.content || '(No response)';
+      if (text.trim()) addMessage('agent', text);
+      break;
+    }
+
+    // Process each tool call
+    let taskDone = false;
+
+    for (const tc of toolCalls) {
+      if (stopRequested) break;
+
+      const toolName = tc.function.name;
+      let toolArgs = {};
+
+      try {
+        toolArgs = JSON.pa
