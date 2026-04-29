@@ -1,0 +1,40 @@
+name: Deploy to Replit
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Sync files to Replit
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install curl
+        run: sudo apt-get install -y curl
+
+      - name: Push files to Replit via API
+        env:
+          REPLIT_TOKEN: ${{ secrets.REPLIT_TOKEN }}
+          REPLIT_REPL_ID: ${{ secrets.REPLIT_REPL_ID }}
+        run: |
+          echo "Uploading taskpane.html to Replit..."
+          curl -s -X POST "https://replit.com/data/repls/${REPLIT_REPL_ID}/files" \
+            -H "Authorization: Bearer ${REPLIT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"path\": \"taskpane.html\", \"content\": $(jq -Rs . < taskpane.html)}"
+
+          echo "Uploading manifest.xml to Replit..."
+          curl -s -X POST "https://replit.com/data/repls/${REPLIT_REPL_ID}/files" \
+            -H "Authorization: Bearer ${REPLIT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"path\": \"manifest.xml\", \"content\": $(jq -Rs . < manifest.xml)}"
+
+          echo "Done! Files synced to Replit."
+
+      - name: Confirm deployment
+        run: echo "✅ Deployed to Replit successfully on $(date)"
