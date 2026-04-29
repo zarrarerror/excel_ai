@@ -735,7 +735,15 @@ Example commands:<br/>
 //            write/formula/format/chart/sheet/sort tools
 // ═══════════════════════════════════════════════════════════════
 
-// ── MUST BE FIRST: Register Office.onReady immediately so office.js doesn't throw ──
+// ── ABSOLUTE FIRST: suppress uncaught errors from external CDN scripts (office.js, pdf.js, xlsx.js)
+window.onerror = function(msg, src) {
+  if (src && (src.indexOf('office.js') !== -1 || src.indexOf('pdf.min.js') !== -1 || src.indexOf('xlsx.full') !== -1)) {
+    return true; // suppress — these are tracking-prevention side effects, not our bugs
+  }
+  return false;
+};
+
+// ── Register Office.onReady immediately ──
 let _officeInfo = null;
 let _officeInitDone = false;
 let _domReady = false;
@@ -1866,17 +1874,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
       break;
     }
 
-    iterations++;
-    showTyping(true);
-
-    let assistantMsg;
-    try {
-      assistantMsg = await callAI(messages, TOOL_DEFINITIONS);
-    } catch(e) {
-      addMessage('error', '❌ AI call failed: ' + e.message + '\n\nTip: Check your API key and model in Settings.');
-      break;
-    }
-
-    showTyping(false);
-
-    // Add assistant message to hi
+    iteratio
