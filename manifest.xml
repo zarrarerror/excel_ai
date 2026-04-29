@@ -26,7 +26,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://YOUR_HOSTED_URL/taskpane.html"/>
+    <SourceLocation DefaultValue="https://excelai.replit.app/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -79,7 +79,7 @@
       </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://shayntech.com"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://YOUR_HOSTED_URL/taskpane.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://excelai.replit.app/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Shayntech AI Agent is ready!"/>
@@ -93,4 +93,4 @@
     </Resources>
   </VersionOverrides>
 
-</OfficeApp>
+</Offic
