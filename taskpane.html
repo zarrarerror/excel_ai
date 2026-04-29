@@ -757,6 +757,22 @@ const cfg = {
   ctxRows: 100
 };
 
+// ── Storage wrapper (localStorage may be blocked in Office iframes) ──
+const storage = {
+  _mem: {},
+  setItem(key, val) {
+    try { localStorage.setItem(key, val); } catch(e) {}
+    this._mem[key] = val;
+  },
+  getItem(key) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v !== null) return v;
+    } catch(e) {}
+    return this._mem[key] || null;
+  }
+};
+
 // ── Office.js init ──
 Office.onReady(function(info) {
   if (info.host === Office.HostType.Excel) {
@@ -824,16 +840,16 @@ function saveSettings() {
   cfg.ctxRows  = parseInt(document.getElementById('ctx-rows').value);
 
   try {
-    localStorage.setItem('shayntech_cfg', JSON.stringify(cfg));
+    storage.setItem('shayntech_cfg', JSON.stringify(cfg));
     showNotif('Settings saved!', 'success');
   } catch(e) {
-    showNotif('Could not save settings', 'fail');
+    showNotif('Settings saved (memory only — storage blocked by browser)', 'success');
   }
 }
 
 function loadSettings() {
   try {
-    const saved = localStorage.getItem('shayntech_cfg');
+    const saved = storage.getItem('shayntech_cfg');
     if (!saved) return;
     const s = JSON.parse(saved);
     Object.assign(cfg, s);
@@ -1869,16 +1885,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
     if (taskDone) break;
 
     // If assistantMsg had text alongside tools, show it
-    if (assistantMsg.content && assistantMsg.content.trim()) {
-      addMessage('agent', assistantMsg.content);
-    }
-  }
-
-  if (iterations >= maxIter && !stopRequested) {
-    addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
-  }
-}
-
-// ── Auto-resize textarea on input ──
-inputEl.addEventListener('keyup', () => {
-  inputEl.style
+  
