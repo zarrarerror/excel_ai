@@ -817,12 +817,7 @@ function initOffice() {
   }
 }
 
-// Run after DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initOffice);
-} else {
-  initOffice();
-}
+// NOTE: initOffice() is called AFTER all DOM refs and listeners are set up below
 
 // ── DOM references ──
 const messagesEl   = document.getElementById('messages');
@@ -1133,6 +1128,9 @@ async function handleSend() {
   stopBtn.style.display = 'none';
   setStatus('ready');
 }
+
+// ── Init Office AFTER all DOM refs and listeners are ready ──
+initOffice();
 
 function hasValidConfig() {
   const p = cfg.provider;
@@ -1875,4 +1873,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     if (!toolCalls || toolCalls.length === 0) {
       // Pure text response — show it and end
-      const text = assistantMsg.content || '(No response)
+      const text = assistantMsg.content || 
