@@ -757,7 +757,7 @@ const cfg = {
   ctxRows: 100
 };
 
-// ── Storage wrapper (localStorage may be blocked in Office iframes) ──
+// ── Storage wrapper (localStorage blocked by tracking prevention in Office iframes) ──
 const storage = {
   _mem: {},
   setItem(key, val) {
@@ -773,17 +773,56 @@ const storage = {
   }
 };
 
-// ── Office.js init ──
-Office.onReady(function(info) {
-  if (info.host === Office.HostType.Excel) {
-    officeReady = true;
-    setStatus('ready');
-    loadSettings();
-  } else {
+// ── Office.js init — safe wrapper that never crashes the page ──
+function initOffice() {
+  try {
+    if (typeof Office === 'undefined') {
+      setStatus('error');
+      addMessage('system', '⚠️ Office.js failed to load. Try reloading the add-in.');
+      return;
+    }
+    // Support both onReady (modern) and initialize (legacy)
+    if (Office.onReady) {
+      Office.onReady(function(info) {
+        try {
+          if (info && info.host === Office.HostType.Excel) {
+            officeReady = true;
+            setStatus('ready');
+            loadSettings();
+          } else if (!info || !info.host) {
+            // Loaded outside Excel (e.g. browser preview) — still allow UI
+            setStatus('ready');
+            loadSettings();
+          } else {
+            setStatus('error');
+            addMessage('system', '⚠️ This add-in requires Microsoft Excel.');
+          }
+        } catch(e) {
+          // Office host check failed — still try to run
+          officeReady = true;
+          setStatus('ready');
+          loadSettings();
+        }
+      });
+    } else {
+      Office.initialize = function() {
+        officeReady = true;
+        setStatus('ready');
+        loadSettings();
+      };
+    }
+  } catch(e) {
     setStatus('error');
-    addMessage('system', '⚠️ This add-in requires Microsoft Excel.');
+    addMessage('system', '⚠️ Office.js error: ' + e.message);
   }
-});
+}
+
+// Run after DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOffice);
+} else {
+  initOffice();
+}
 
 // ── DOM references ──
 const messagesEl   = document.getElementById('messages');
@@ -1836,53 +1875,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     if (!toolCalls || toolCalls.length === 0) {
       // Pure text response — show it and end
-      const text = assistantMsg.content || '(No response)';
-      if (text.trim()) addMessage('agent', text);
-      break;
-    }
-
-    // Process each tool call
-    let taskDone = false;
-
-    for (const tc of toolCalls) {
-      if (stopRequested) break;
-
-      const toolName = tc.function.name;
-      let toolArgs = {};
-
-      try {
-        toolArgs = JSON.parse(tc.function.arguments || '{}');
-      } catch(e) {
-        toolArgs = {};
-      }
-
-      if (toolName === 'task_complete') {
-        const summary = toolArgs.summary || 'Task completed.';
-        addMessage('agent', '✅ Done!\n\n' + summary);
-        taskDone = true;
-        break;
-      }
-
-      // Show the action being taken
-      addMessage('tool-call', `⚡ ${toolName}(${JSON.stringify(toolArgs, null, 0).slice(0, 120)}...)`);
-
-      let toolResult = '';
-      try {
-        toolResult = await executeTool(toolName, toolArgs);
-      } catch(e) {
-        toolResult = 'ERROR: ' + e.message;
-        addMessage('error', `Tool ${toolName} failed: ${e.message}`);
-      }
-
-      // Add tool result to conversation
-      messages.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: toolResult
-      });
-    }
-
-    if (taskDone) break;
-
-    // If assistantMsg had text alongside tools, show it
-  
+      const text = assistantMsg.content || '(No response)
