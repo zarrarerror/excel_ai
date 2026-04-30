@@ -566,6 +566,9 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <div class="settings-title">AI Provider</div>
       <div class="provider-tabs">
         <div class="ptab active" data-provider="openrouter">OpenRouter</div>
+        <div class="ptab" data-provider="gemini">Gemini</div>
+        <div class="ptab" data-provider="groq">Groq</div>
+        <div class="ptab" data-provider="claude">Claude</div>
         <div class="ptab" data-provider="qwen">Qwen</div>
         <div class="ptab" data-provider="ollama">Ollama</div>
       </div>
@@ -596,6 +599,69 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <div class="field" id="or-custom-field" style="display:none;">
           <label>Custom Model ID</label>
           <input type="text" id="or-custom-model" placeholder="provider/model-name"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gemini config -->
+    <div class="provider-config" id="cfg-gemini">
+      <div class="settings-section">
+        <div class="settings-title">Google Gemini</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="gm-key" placeholder="AIza..."/>
+          <div class="hint">Get free key at aistudio.google.com → Get API Key (generous free tier)</div>
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <select id="gm-model">
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Free, Fast)</option>
+            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Free, Fastest)</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Free tier)</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Free tier)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groq config -->
+    <div class="provider-config" id="cfg-groq">
+      <div class="settings-section">
+        <div class="settings-title">Groq (Ultra-Fast)</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="gq-key" placeholder="gsk_..."/>
+          <div class="hint">Free key at console.groq.com — extremely fast inference</div>
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <select id="gq-model">
+            <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Free)</option>
+            <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Free, Fastest)</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B (Free)</option>
+            <option value="gemma2-9b-it">Gemma 2 9B (Free)</option>
+            <option value="llama3-groq-70b-8192-tool-use-preview">Llama 3 70B Tool Use (Free)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claude config -->
+    <div class="provider-config" id="cfg-claude">
+      <div class="settings-section">
+        <div class="settings-title">Anthropic Claude</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="cl-key" placeholder="sk-ant-..."/>
+          <div class="hint">Get key at console.anthropic.com — best reasoning and instruction following</div>
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <select id="cl-model">
+            <option value="claude-haiku-4-5">Claude Haiku 4.5 (Fast, Affordable)</option>
+            <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (Balanced)</option>
+            <option value="claude-opus-4-5">Claude Opus 4.5 (Most Capable)</option>
+          </select>
         </div>
       </div>
     </div>
@@ -708,7 +774,7 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <div class="cap-item"><span class="cap-icon">🔃</span><span>Sorts and filters data ranges</span></div>
       <div class="cap-item"><span class="cap-icon">📎</span><span>Reads attached PDF, CSV, XLSX, TXT, JSON files</span></div>
       <div class="cap-item"><span class="cap-icon">🤖</span><span>Multi-step agent loop — plans, executes, verifies, reports</span></div>
-      <div class="cap-item"><span class="cap-icon">🔌</span><span>OpenRouter (free) · Qwen/Alibaba (free) · Ollama (local/cloud)</span></div>
+      <div class="cap-item"><span class="cap-icon">🔌</span><span>OpenRouter · Gemini · Groq · Claude · Qwen/Alibaba · Ollama (local)</span></div>
     </div>
 
     <div class="settings-title">Quick Start</div>
@@ -787,6 +853,9 @@ let attachedFileName = null;
 const cfg = {
   provider: 'openrouter',
   or: { key: '', model: 'deepseek/deepseek-r1:free' },
+  gm: { key: '', model: 'gemini-2.0-flash' },
+  gq: { key: '', model: 'llama-3.3-70b-versatile' },
+  cl: { key: '', model: 'claude-haiku-4-5' },
   qw: { key: '', model: 'qwen-turbo', host: '' },
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
   maxIter: 20,
@@ -875,6 +944,12 @@ function saveSettings() {
   cfg.or.model = document.getElementById('or-model').value === 'custom'
     ? document.getElementById('or-custom-model').value.trim()
     : document.getElementById('or-model').value;
+  cfg.gm.key   = document.getElementById('gm-key').value.trim();
+  cfg.gm.model = document.getElementById('gm-model').value;
+  cfg.gq.key   = document.getElementById('gq-key').value.trim();
+  cfg.gq.model = document.getElementById('gq-model').value;
+  cfg.cl.key   = document.getElementById('cl-key').value.trim();
+  cfg.cl.model = document.getElementById('cl-model').value;
   cfg.qw.key   = document.getElementById('qw-key').value.trim();
   cfg.qw.model = document.getElementById('qw-model').value;
   cfg.qw.host  = document.getElementById('qw-host').value.trim().replace(/\/$/, '');
@@ -899,6 +974,9 @@ function loadSettings() {
     const s = JSON.parse(saved);
     Object.assign(cfg, s);
     document.getElementById('or-key').value   = cfg.or.key || '';
+    document.getElementById('gm-key').value   = cfg.gm?.key || '';
+    document.getElementById('gq-key').value   = cfg.gq?.key || '';
+    document.getElementById('cl-key').value   = cfg.cl?.key || '';
     document.getElementById('qw-key').value   = cfg.qw.key || '';
     document.getElementById('qw-host').value  = cfg.qw.host || '';
     document.getElementById('ol-url').value   = cfg.ol.url || 'http://localhost:11434';
@@ -906,6 +984,9 @@ function loadSettings() {
     document.getElementById('ol-key').value   = cfg.ol.key || '';
     document.getElementById('max-iter').value  = cfg.maxIter || 20;
     document.getElementById('ctx-rows').value  = cfg.ctxRows || 500;
+    if (cfg.gm?.model) document.getElementById('gm-model').value = cfg.gm.model;
+    if (cfg.gq?.model) document.getElementById('gq-model').value = cfg.gq.model;
+    if (cfg.cl?.model) document.getElementById('cl-model').value = cfg.cl.model;
 
     // Set provider tab
     const p = cfg.provider || 'openrouter';
@@ -1153,6 +1234,9 @@ setTimeout(function() {
 function hasValidConfig() {
   const p = cfg.provider;
   if (p === 'openrouter') return !!cfg.or.key && !!cfg.or.model;
+  if (p === 'gemini')     return !!cfg.gm?.key && !!cfg.gm?.model;
+  if (p === 'groq')       return !!cfg.gq?.key && !!cfg.gq?.model;
+  if (p === 'claude')     return !!cfg.cl?.key && !!cfg.cl?.model;
   if (p === 'qwen')       return !!cfg.qw.key && !!cfg.qw.model;
   if (p === 'ollama')     return !!cfg.ol.url && !!cfg.ol.model;
   return false;
@@ -1471,6 +1555,9 @@ async function callAI(messages, tools) {
   const p = cfg.provider;
 
   if (p === 'openrouter') return callOpenRouter(messages, tools);
+  if (p === 'gemini')     return callGemini(messages, tools);
+  if (p === 'groq')       return callGroq(messages, tools);
+  if (p === 'claude')     return callClaude(messages, tools);
   if (p === 'qwen')       return callQwen(messages, tools);
   if (p === 'ollama')     return callOllama(messages, tools);
   throw new Error('Unknown provider: ' + p);
@@ -1538,6 +1625,224 @@ async function callOpenRouter(messages, tools) {
   const data = await res.json();
   if (!data.choices || !data.choices[0]) throw new Error('No response from OpenRouter');
   return normalizeMessage(data.choices[0].message);
+}
+
+async function callGemini(messages, tools) {
+  if (!cfg.gm?.key) throw new Error('Gemini API key is missing. Please add it in Settings.');
+
+  // Convert OpenAI message format → Gemini format
+  const systemParts = [];
+  const geminiContents = [];
+
+  for (const m of messages) {
+    if (m.role === 'system') {
+      systemParts.push({ text: m.content });
+    } else if (m.role === 'user') {
+      geminiContents.push({ role: 'user', parts: [{ text: m.content || '' }] });
+    } else if (m.role === 'assistant') {
+      const parts = [];
+      if (m.content) parts.push({ text: m.content });
+      if (m.tool_calls) {
+        for (const tc of m.tool_calls) {
+          let args = tc.function.arguments;
+          if (typeof args === 'string') try { args = JSON.parse(args); } catch(e) {}
+          parts.push({ functionCall: { name: tc.function.name, args } });
+        }
+      }
+      if (parts.length) geminiContents.push({ role: 'model', parts });
+    } else if (m.role === 'tool') {
+      // Tool result — attach to last model turn or create user turn
+      const resultPart = { functionResponse: { name: m.name || 'tool', response: { result: m.content } } };
+      geminiContents.push({ role: 'user', parts: [resultPart] });
+    }
+  }
+
+  // Build Gemini tool declarations
+  const geminiTools = (tools && tools.length > 0) ? [{
+    functionDeclarations: tools.map(t => ({
+      name: t.function.name,
+      description: t.function.description,
+      parameters: t.function.parameters
+    }))
+  }] : undefined;
+
+  const reqBody = {
+    contents: geminiContents,
+    generationConfig: { maxOutputTokens: 2048, temperature: 0.2 }
+  };
+  if (systemParts.length) reqBody.systemInstruction = { parts: systemParts };
+  if (geminiTools) reqBody.tools = geminiTools;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.gm.model}:generateContent?key=${cfg.gm.key}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reqBody)
+  });
+
+  if (!res.ok) {
+    let errText = ''; try { errText = await res.text(); } catch(e) {}
+    if (res.status === 400) throw new Error('Gemini 400: ' + errText.slice(0, 200));
+    if (res.status === 403) throw new Error('Gemini: Invalid API key (403). Check your key at aistudio.google.com.');
+    if (res.status === 429) throw new Error('Gemini: Rate limit hit (429). Wait a moment and retry.');
+    throw new Error(`Gemini error ${res.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const candidate = data.candidates?.[0];
+  if (!candidate) throw new Error('No response from Gemini');
+
+  // Convert Gemini response → OpenAI message format
+  const parts = candidate.content?.parts || [];
+  let textContent = '';
+  const toolCalls = [];
+
+  for (const part of parts) {
+    if (part.text) textContent += part.text;
+    if (part.functionCall) {
+      toolCalls.push({
+        id: 'gemini_' + Math.random().toString(36).slice(2, 9),
+        type: 'function',
+        function: {
+          name: part.functionCall.name,
+          arguments: JSON.stringify(part.functionCall.args || {})
+        }
+      });
+    }
+  }
+
+  const msg = { role: 'assistant', content: textContent || null };
+  if (toolCalls.length > 0) msg.tool_calls = toolCalls;
+  return normalizeMessage(msg);
+}
+
+async function callGroq(messages, tools) {
+  if (!cfg.gq?.key) throw new Error('Groq API key is missing. Please add it in Settings.');
+
+  const body = {
+    model: cfg.gq.model,
+    messages,
+    max_tokens: 2048,
+    temperature: 0.2,
+    stream: false
+  };
+  if (tools && tools.length > 0) {
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + cfg.gq.key
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    let errText = ''; try { errText = await res.text(); } catch(e) {}
+    if (res.status === 401) throw new Error('Groq: Invalid API key (401). Check your key at console.groq.com.');
+    if (res.status === 429) throw new Error('Groq: Rate limit (429). Wait a moment and retry.');
+    throw new Error(`Groq error ${res.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  if (!data.choices?.[0]) throw new Error('No response from Groq');
+  return normalizeMessage(data.choices[0].message);
+}
+
+async function callClaude(messages, tools) {
+  if (!cfg.cl?.key) throw new Error('Claude API key is missing. Please add it in Settings.');
+
+  // Separate system message from conversation
+  const systemMsg = messages.find(m => m.role === 'system');
+  const conversation = messages.filter(m => m.role !== 'system');
+
+  // Convert tool results: Claude uses role:'user' with tool_result content blocks
+  const claudeMessages = [];
+  for (const m of conversation) {
+    if (m.role === 'assistant') {
+      const content = [];
+      if (m.content) content.push({ type: 'text', text: m.content });
+      if (m.tool_calls) {
+        for (const tc of m.tool_calls) {
+          let inp = tc.function.arguments;
+          if (typeof inp === 'string') try { inp = JSON.parse(inp); } catch(e) { inp = {}; }
+          content.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input: inp });
+        }
+      }
+      claudeMessages.push({ role: 'assistant', content });
+    } else if (m.role === 'tool') {
+      // Group consecutive tool results into one user message
+      const last = claudeMessages[claudeMessages.length - 1];
+      const block = { type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content) };
+      if (last && last.role === 'user' && Array.isArray(last.content)) {
+        last.content.push(block);
+      } else {
+        claudeMessages.push({ role: 'user', content: [block] });
+      }
+    } else {
+      claudeMessages.push(m);
+    }
+  }
+
+  const reqBody = {
+    model: cfg.cl.model,
+    max_tokens: 2048,
+    messages: claudeMessages
+  };
+  if (systemMsg) reqBody.system = systemMsg.content;
+  if (tools && tools.length > 0) {
+    reqBody.tools = tools.map(t => ({
+      name: t.function.name,
+      description: t.function.description,
+      input_schema: t.function.parameters
+    }));
+  }
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': cfg.cl.key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(reqBody)
+  });
+
+  if (!res.ok) {
+    let errText = ''; try { errText = await res.text(); } catch(e) {}
+    if (res.status === 401) throw new Error('Claude: Invalid API key (401). Check your key at console.anthropic.com.');
+    if (res.status === 529) throw new Error('Claude: API overloaded (529). Try again in a moment.');
+    throw new Error(`Claude error ${res.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  if (!data.content) throw new Error('No response from Claude');
+
+  // Convert Claude response → OpenAI message format
+  let textContent = '';
+  const toolCalls = [];
+
+  for (const block of data.content) {
+    if (block.type === 'text') textContent += block.text;
+    if (block.type === 'tool_use') {
+      toolCalls.push({
+        id: block.id,
+        type: 'function',
+        function: {
+          name: block.name,
+          arguments: JSON.stringify(block.input || {})
+        }
+      });
+    }
+  }
+
+  const msg = { role: 'assistant', content: textContent || null };
+  if (toolCalls.length) msg.tool_calls = toolCalls;
+  return normalizeMessage(msg);
 }
 
 async function callQwen(messages, tools) {
