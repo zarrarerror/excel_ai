@@ -1510,9 +1510,15 @@ async function executeTool(toolName, args) {
             result = result || 'ERROR: write_range requires sheet, range, and a non-empty values array.';
           } else {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
-            const values = args.values;
+            // Normalize: pad all rows to the same column count (prevents dimension mismatch)
+            const maxCols = args.values.reduce(function(m, r) { return Math.max(m, Array.isArray(r) ? r.length : 1); }, 1);
+            const values = args.values.map(function(r) {
+              if (!Array.isArray(r)) return Array(maxCols).fill('');
+              if (r.length === maxCols) return r;
+              return r.concat(Array(maxCols - r.length).fill(''));
+            });
             const numRows = values.length;
-            const numCols = values[0] ? values[0].length : 1;
+            const numCols = maxCols;
             const topLeft = args.range.split(':')[0];
             // Save undo snapshot before overwriting
             try {
