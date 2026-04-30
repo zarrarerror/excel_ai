@@ -188,6 +188,23 @@
     border-left: 2px solid var(--danger);
     color: #ff8fa0;
   }
+  .chat-toolbar {
+    display: flex;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .chat-tool-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 10px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .chat-tool-btn:hover { color: var(--accent); border-color: var(--accent); }
+
   .msg-copy-btn {
     display: none;
     position: absolute;
@@ -565,10 +582,12 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <button class="remove-file" id="remove-file-btn">✕</button>
     </div>
     <div class="input-row">
+      <div class="chat-toolbar">
+        <button class="chat-tool-btn" id="export-btn" title="Export conversation">💾 Export</button>
+        <button class="chat-tool-btn" id="clear-history-btn" title="Clear chat history">🗑 Clear</button>
+      </div>
       <div class="input-btns">
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
-        <button class="icon-btn" id="export-btn" title="Export conversation" style="font-size:13px;">💾</button>
-        <button class="icon-btn" id="clear-history-btn" title="Clear chat history" style="font-size:13px; color:var(--muted);">🗑</button>
       </div>
       <textarea id="user-input" placeholder="Ask the agent to do something in Excel..." rows="2"></textarea>
       <button class="icon-btn" id="undo-btn" title="Undo last write" style="border-color:var(--muted); color:var(--muted);" disabled onclick="applyUndo()">↩</button>
