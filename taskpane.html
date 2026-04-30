@@ -787,6 +787,14 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       </div>
     </div>
 
+    <div class="field" style="padding-top:4px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="require-approval" style="width:16px;height:16px;accent-color:var(--accent);">
+        <span>Require plan approval before execution</span>
+      </label>
+      <div class="hint">Agent shows its plan and waits for your ✅ before running any tools</div>
+    </div>
+
     <div class="btn-row">
       <button class="save-btn" id="save-settings-btn">💾 Save Settings</button>
       <button class="test-btn" id="test-conn-btn">🔌 Test Connection</button>
@@ -901,7 +909,8 @@ const cfg = {
   qw: { key: '', model: 'qwen-turbo', host: '' },
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
   maxIter: 20,
-  ctxRows: 500
+  ctxRows: 500,
+  requireApproval: false
 };
 
 // ── Storage wrapper (localStorage blocked by tracking prevention in Office iframes) ──
@@ -1005,6 +1014,7 @@ function saveSettings() {
   cfg.ol.key   = document.getElementById('ol-key').value.trim();
   cfg.maxIter  = parseInt(document.getElementById('max-iter').value);
   cfg.ctxRows  = parseInt(document.getElementById('ctx-rows').value);
+  cfg.requireApproval = document.getElementById('require-approval').checked;
 
   try {
     storage.setItem('shayntech_cfg', JSON.stringify(cfg));
@@ -1031,6 +1041,7 @@ function loadSettings() {
     document.getElementById('ol-key').value   = cfg.ol.key || '';
     document.getElementById('max-iter').value  = cfg.maxIter || 20;
     document.getElementById('ctx-rows').value  = cfg.ctxRows || 500;
+    document.getElementById('require-approval').checked = cfg.requireApproval || false;
     if (cfg.gm?.model) document.getElementById('gm-model').value = cfg.gm.model;
     if (cfg.gq?.model) document.getElementById('gq-model').value = cfg.gq.model;
     if (cfg.cl?.model) document.getElementById('cl-model').value = cfg.cl.model;
@@ -1446,6 +1457,18 @@ try { agentMemory = JSON.parse(storage.getItem('agentMemory') || '{}'); } catch(
 function saveMemoryKey(key, value) {
   agentMemory[key] = value;
   try { storage.setItem('agentMemory', JSON.stringify(agentMemory)); } catch(e) {}
+}
+
+function waitForApproval() {
+  return new Promise(function(resolve) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:8px;padding:6px 4px;';
+    wrap.innerHTML = '<button id="approve-exec-btn" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">✅ Approve & Execute</button><button id="reject-exec-btn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">❌ Cancel</button>';
+    messagesEl.insertBefore(wrap, typingEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    document.getElementById('approve-exec-btn').onclick = function() { wrap.remove(); resolve(true); };
+    document.getElementById('reject-exec-btn').onclick = function() { wrap.remove(); resolve(false); };
+  });
 }
 
 function applyUndo() {
@@ -3161,6 +3184,8 @@ RULES
 16. AUTO CLEAN RULE: If analyze_data reveals blank cells or text inconsistencies, proactively offer or call clean_data before analysis.
 17. OUTLIER RULE: For financial or numeric datasets, always call highlight_outliers after writing data to flag anomalies automatically.
 18. DASHBOARD RULE: After analyzing data, create a "Dashboard" sheet with: (a) a stats summary table, (b) a chart of the most important metric, (c) conditional formatting on key columns. Use save_memory to remember the dashboard sheet name.
+19. DATE COLUMN RULE: If a column expected to contain text month labels (e.g. "Jan 2026") shows as numeric serial dates after read_range, the values were auto-converted by Excel. In this case: (a) first set the column numberFormat to "MMM-YY" using format_range so values display correctly, (b) use SUMIF with TEXT() criteria OR use SUMIFS with date range: =SUMPRODUCT((MONTH(Sheet!G$2:G$21)=1)*(YEAR(Sheet!G$2:G$21)=2026)*Sheet!F$2:F$21). Never use hardcoded serial numbers for SUMIF — always verify with read_range first.
+20. TEXT FORMAT RULE: Before writing month/date labels that should stay as text (like "Jan 2026", "Q1 2026"), first call format_range with numberFormat "@" on that column range to force text storage and prevent Excel auto-conversion.
 
 AGENT MEMORY (from previous sessions):
 ${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
@@ -3215,6 +3240,16 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
     // Show plan / commentary text BEFORE executing tools
     if (assistantMsg.content && assistantMsg.content.trim()) {
       addMessage('agent', assistantMsg.content);
+    }
+
+    // Plan approval gate — only on first iteration if enabled
+    if (cfg.requireApproval && iterations === 1 && assistantMsg.content && assistantMsg.content.trim()) {
+      showTyping(false);
+      const approved = await waitForApproval();
+      if (!approved) {
+        addMessage('system', '⛔ Plan cancelled. Agent stopped.');
+        break;
+      }
     }
 
     // Process each tool call
