@@ -1684,12 +1684,42 @@ function normalizeMessage(msg) {
   if (msg && msg.tool_calls) {
     msg.tool_calls = msg.tool_calls.map(tc => {
       if (tc.function && typeof tc.function.arguments !== 'string') {
-        tc.function.arguments = JSON.stringify(tc.function.arguments);
+        tc.function.arguments = JSON.stringify(tc.function.arguments || {});
       }
       return tc;
     });
   }
   return msg;
+}
+
+// Normalize the entire outgoing messages array before sending to any provider.
+// Ensures assistant tool_call arguments are always JSON strings,
+// and tool role content is always a plain string.
+function normalizeMessages(messages) {
+  return messages.map(m => {
+    if (!m) return m;
+    if (m.role === 'assistant' && m.tool_calls) {
+      return Object.assign({}, m, {
+        tool_calls: m.tool_calls.map(tc => {
+          if (!tc || !tc.function) return tc;
+          const args = tc.function.arguments;
+          return Object.assign({}, tc, {
+            id: String(tc.id || tc.function.name || 'tool_0'),
+            function: Object.assign({}, tc.function, {
+              arguments: typeof args === 'string' ? args : JSON.stringify(args || {})
+            })
+          });
+        })
+      });
+    }
+    if (m.role === 'tool') {
+      return Object.assign({}, m, {
+        tool_call_id: String(m.tool_call_id || 'tool_0'),
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+      });
+    }
+    return m;
+  });
 }
 
 async function callAI(messages, tools) {
@@ -1720,6 +1750,7 @@ async function callOpenRouter(messages, tools) {
     body.tool_choice = 'auto';
   }
 
+  body.messages = normalizeMessages(body.messages);
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -1872,6 +1903,7 @@ async function callGroq(messages, tools) {
     body.tool_choice = 'auto';
   }
 
+  body.messages = normalizeMessages(body.messages);
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -2012,6 +2044,7 @@ async function callQwen(messages, tools) {
       body.tools = tools;
       body.tool_choice = 'auto';
     }
+    body.messages = normalizeMessages(body.messages);
     return fetch(qwBaseUrl + '/chat/completions', {
       method: 'POST',
       headers: qwHeaders,
@@ -2064,6 +2097,7 @@ async function callOllama(messages, tools) {
   const headers = { 'Content-Type': 'application/json' };
   if (cfg.ol.key) headers['Authorization'] = 'Bearer ' + cfg.ol.key;
 
+  if (finalBody.messages) finalBody.messages = normalizeMessages(finalBody.messages);
   const res = await fetch(finalUrl, {
     method: 'POST',
     headers,
