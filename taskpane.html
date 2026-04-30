@@ -1938,4 +1938,15 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     // If assistantMsg had text alongside tools, show it
     if (assistantMsg.content && assistantMsg.content.trim()) {
-      addMessage('agent', assistantMs
+      addMessage('agent', assistantMsg.content);
+    }
+  }
+
+  if (iterations >= maxIter && !stopRequested) {
+    addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
+  }
+}
+
+</script>
+</body>
+</html>
