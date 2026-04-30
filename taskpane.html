@@ -3208,6 +3208,33 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
   let iterations = 0;
   const maxIter = cfg.maxIter;
 
+  // ── Plan Approval Phase ──
+  if (cfg.requireApproval) {
+    addMessage('system', '🤔 Generating plan...');
+    showTyping(true);
+    const planSystemPrompt = `You are a planning assistant for an Excel AI agent. The user will give you a task. Output ONLY a numbered plan (3-6 steps) describing what you will do. Do NOT call any tools. Do NOT start executing. Be concise and specific about which sheets, ranges, and operations you will use.`;
+    const planMessages = [
+      { role: 'system', content: planSystemPrompt },
+      { role: 'user',   content: userCommand + (workbookText ? '\n\nWorkbook context:\n' + workbookText.slice(0, 1500) : '') }
+    ];
+    let planText = '';
+    try {
+      const planMsg = await callAI(planMessages, []);
+      planText = (planMsg && planMsg.content) ? planMsg.content.trim() : 'Ready to execute your request.';
+    } catch(e) {
+      planText = 'Ready to execute your request. (Planning call failed: ' + e.message + ')';
+    }
+    showTyping(false);
+    addMessage('agent', '📋 Plan:\n\n' + planText);
+    const approved = await waitForApproval();
+    if (!approved) {
+      addMessage('system', '⛔ Plan cancelled by user. Nothing was changed.');
+      return;
+    }
+    addMessage('system', '✅ Plan approved — executing...');
+    showTyping(true);
+  }
+
   showTyping(true);
 
   // 4. Agent loop
@@ -3246,16 +3273,6 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
     // Show plan / commentary text BEFORE executing tools
     if (assistantMsg.content && assistantMsg.content.trim()) {
       addMessage('agent', assistantMsg.content);
-    }
-
-    // Plan approval gate — only on first iteration if enabled
-    if (cfg.requireApproval && iterations === 1 && assistantMsg.content && assistantMsg.content.trim()) {
-      showTyping(false);
-      const approved = await waitForApproval();
-      if (!approved) {
-        addMessage('system', '⛔ Plan cancelled. Agent stopped.');
-        break;
-      }
     }
 
     // Process each tool call
