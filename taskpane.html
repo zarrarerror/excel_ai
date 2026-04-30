@@ -735,38 +735,24 @@ Example commands:<br/>
 //            write/formula/format/chart/sheet/sort tools
 // ═══════════════════════════════════════════════════════════════
 
-// ── ABSOLUTE FIRST: suppress uncaught errors from external CDN scripts (office.js, pdf.js, xlsx.js)
+// ── ABSOLUTE FIRST: suppress all errors from CDN scripts broken by tracking prevention ──
 window.onerror = function(msg, src) {
-  if (src && (src.indexOf('office.js') !== -1 || src.indexOf('pdf.min.js') !== -1 || src.indexOf('xlsx.full') !== -1)) {
-    return true; // suppress — these are tracking-prevention side effects, not our bugs
-  }
+  // Suppress errors from office.js, pdf.js, xlsx.js — caused by Edge tracking prevention
+  if (!src) return false;
+  if (src.indexOf('office.js') !== -1) return true;
+  if (src.indexOf('pdf.min.js') !== -1) return true;
+  if (src.indexOf('xlsx.full') !== -1) return true;
   return false;
 };
 
-// ── Register Office.onReady immediately ──
-let _officeInfo = null;
 let _officeInitDone = false;
 let _domReady = false;
 
-// Catch the "Office.js has not fully loaded" uncaught error from Edge tracking prevention
-window.addEventListener('error', function(e) {
-  if (e && e.message && e.message.indexOf('Office.js') !== -1) {
-    e.preventDefault();
-    e.stopPropagation();
-    _officeInitDone = true;
-    if (_domReady && !window._appStarted) _onBothReady();
-  }
-}, true);
-
+// ── Use Office.initialize (simple property — no localStorage needed) ──
+// This stops office.js's retry loop immediately without needing storage access
 try {
-  if (typeof Office !== 'undefined' && Office.onReady) {
-    Office.onReady(function(info) {
-      _officeInfo = info;
-      _officeInitDone = true;
-      if (_domReady) _onBothReady();
-    });
-  } else if (typeof Office !== 'undefined') {
-    Office.initialize = function() {
+  if (typeof Office !== 'undefined') {
+    Office.initialize = function(reason) {
       _officeInitDone = true;
       if (_domReady) _onBothReady();
     };
@@ -1874,4 +1860,94 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
       break;
     }
 
-    iteratio
+    iterations++;
+    showTyping(true);
+
+    let assistantMsg;
+    try {
+      assistantMsg = await callAI(messages, TOOL_DEFINITIONS);
+    } catch(e) {
+      addMessage('error', '❌ AI call failed: ' + e.message + '\n\nTip: Check your API key and model in Settings.');
+      break;
+    }
+
+    showTyping(false);
+
+    // Add assistant message to history
+    messages.push(assistantMsg);
+
+    // Check for tool calls
+    const toolCalls = assistantMsg.tool_calls;
+
+    if (!toolCalls || toolCalls.length === 0) {
+      // Pure text response — show it and end
+      const text = assistantMsg.content || '(No response)';
+      if (text.trim()) addMessage('agent', text);
+      break;
+    }
+
+    // Process each tool call
+    let taskDone = false;
+
+    for (const tc of toolCalls) {
+      if (stopRequested) break;
+
+      const toolName = tc.function.name;
+      let toolArgs = {};
+
+      try {
+        toolArgs = JSON.parse(tc.function.arguments || '{}');
+      } catch(e) {
+        toolArgs = {};
+      }
+
+      if (toolName === 'task_complete') {
+        const summary = toolArgs.summary || 'Task completed.';
+        addMessage('agent', '✅ Done!\n\n' + summary);
+        taskDone = true;
+        break;
+      }
+
+      // Show the action being taken
+      addMessage('tool-call', `⚡ ${toolName}(${JSON.stringify(toolArgs, null, 0).slice(0, 120)}...)`);
+
+      let toolResult = '';
+      try {
+        toolResult = await executeTool(toolName, toolArgs);
+      } catch(e) {
+        toolResult = 'ERROR: ' + e.message;
+        addMessage('error', `Tool ${toolName} failed: ${e.message}`);
+      }
+
+      // Add tool result to conversation
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: toolResult
+      });
+    }
+
+    if (taskDone) break;
+
+    // If assistantMsg had text alongside tools, show it
+    if (assistantMsg.content && assistantMsg.content.trim()) {
+      addMessage('agent', assistantMsg.content);
+    }
+  }
+
+  if (iterations >= maxIter && !stopRequested) {
+    addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
+  }
+}
+
+// ── Auto-resize textarea on input ──
+inputEl.addEventListener('keyup', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+});
+
+</script>
+
+
+</body>
+</html>
