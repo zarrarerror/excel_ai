@@ -2037,9 +2037,41 @@ async function callQwen(messages, tools) {
   };
 
   async function doQwenRequest(includeTools) {
+    // Deep-clone + strictly validate every message before sending to Qwen
+    var safeMessages = messages.map(function(m) {
+      if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+        return {
+          role: 'assistant',
+          content: m.content !== undefined ? m.content : null,
+          tool_calls: m.tool_calls.map(function(tc) {
+            var rawArgs = tc.function ? tc.function.arguments : undefined;
+            var safeArgs;
+            if (typeof rawArgs === 'string') {
+              try { JSON.parse(rawArgs); safeArgs = rawArgs; } catch(e) { safeArgs = '{}'; }
+            } else {
+              try { safeArgs = JSON.stringify(rawArgs || {}); } catch(e) { safeArgs = '{}'; }
+            }
+            return {
+              id: String(tc.id || (tc.function && tc.function.name) || 'tool_0'),
+              type: 'function',
+              function: { name: tc.function.name, arguments: safeArgs }
+            };
+          })
+        };
+      }
+      if (m.role === 'tool') {
+        return {
+          role: 'tool',
+          tool_call_id: String(m.tool_call_id || 'tool_0'),
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '')
+        };
+      }
+      return m;
+    });
+
     const body = {
       model: cfg.qw.model,
-      messages,
+      messages: safeMessages,
       max_tokens: 2000,
       temperature: 0.2,
       stream: false
@@ -2048,7 +2080,6 @@ async function callQwen(messages, tools) {
       body.tools = tools;
       body.tool_choice = 'auto';
     }
-    body.messages = normalizeMessages(body.messages);
     return fetch(qwBaseUrl + '/chat/completions', {
       method: 'POST',
       headers: qwHeaders,
