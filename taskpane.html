@@ -578,7 +578,7 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <div class="field">
           <label>API Key</label>
           <input type="password" id="or-key" placeholder="sk-or-v1-..."/>
-          <div class="hint">Get free key at openrouter.ai → free models: Mistral, Llama 3, Gemma</div>
+          <div class="hint">Get free key at openrouter.ai → free models: DeepSeek R1, Llama 3.3, Gemma 3</div>
         </div>
         <div class="field">
           <label>Model</label>
@@ -777,7 +777,7 @@ let attachedFileName = null;
 
 const cfg = {
   provider: 'openrouter',
-  or: { key: '', model: 'mistralai/mistral-7b-instruct:free' },
+  or: { key: '', model: 'deepseek/deepseek-r1:free' },
   qw: { key: '', model: 'qwen-turbo' },
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
   maxIter: 10,
@@ -1949,4 +1949,4 @@ inputEl.addEventListener('keyup', () => {
 
 
 </body>
-</html>                                                                                      
+</html>                                                                                       
