@@ -1507,37 +1507,48 @@ async function callQwen(messages, tools) {
   if (!cfg.qw.key) throw new Error('Qwen/Alibaba API key is missing. Please add it in Settings.');
   if (!cfg.qw.model) throw new Error('Qwen model is not set. Please configure it in Settings.');
 
-  const body = {
-    model: cfg.qw.model,
-    messages,
-    max_tokens: 2000,
-    temperature: 0.2,
-    stream: false
-  };
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
   // Clean the base URL: ensure https://, strip trailing slash and accidental /chat/completions suffix
   let qwBaseUrl = (cfg.qw.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
   if (qwBaseUrl && !qwBaseUrl.startsWith('http')) qwBaseUrl = 'https://' + qwBaseUrl;
   qwBaseUrl = qwBaseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
 
-  const res = await fetch(qwBaseUrl + '/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + cfg.qw.key
-    },
-    body: JSON.stringify(body)
-  });
+  const qwHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + cfg.qw.key
+  };
+
+  async function doQwenRequest(includeTools) {
+    const body = {
+      model: cfg.qw.model,
+      messages,
+      max_tokens: 2000,
+      temperature: 0.2,
+      stream: false
+    };
+    if (includeTools && tools && tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = 'auto';
+    }
+    return fetch(qwBaseUrl + '/chat/completions', {
+      method: 'POST',
+      headers: qwHeaders,
+      body: JSON.stringify(body)
+    });
+  }
+
+  let res = await doQwenRequest(true);
+
+  // Some Qwen models (qwen-max, etc.) reject tool calling with 400 —
+  // retry without tools so the model can still respond via plain text
+  if (!res.ok && (res.status === 400 || res.status === 422) && tools && tools.length > 0) {
+    res = await doQwenRequest(false);
+  }
 
   if (!res.ok) {
     let errText = '';
     try { errText = await res.text(); } catch(e) {}
-    if (res.status === 401) throw new Error('Qwen: Invalid API key (401). Check your key and make sure it matches the endpoint (DashScope vs MaaS). Current host: ' + qwBaseUrl);
-    if (res.status === 403) throw new Error('Qwen: Access denied (403). Your key may not have permission for this model or endpoint.');
+    if (res.status === 401) throw new Error('Qwen: Invalid API key (401). Check your key and endpoint. Host: ' + qwBaseUrl);
+    if (res.status === 403) throw new Error('Qwen: Access denied (403). Key may not have permission for this model.');
     throw new Error(`Qwen error ${res.status}: ${errText.slice(0,200)}`);
   }
 
