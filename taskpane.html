@@ -1321,13 +1321,17 @@ async function executeTool(toolName, args) {
       try {
         let result = '';
 
+        // ── Universal arg guard helper ──
+        const need = (fields) => {
+          const missing = fields.filter(f => args[f] === undefined || args[f] === null || args[f] === '');
+          if (missing.length) { result = `ERROR: ${toolName} missing required args: ${missing.join(', ')}`; return false; }
+          return true;
+        };
+
         if (toolName === 'write_range') {
-          // args: { sheet, range, values: [[...],[...]] }
-          if (!args.sheet || !args.range || !Array.isArray(args.values) || args.values.length === 0) {
-            result = 'ERROR: write_range requires sheet, range, and a non-empty values array.';
+          if (!need(['sheet','range']) || !Array.isArray(args.values) || args.values.length === 0) {
+            result = result || 'ERROR: write_range requires sheet, range, and a non-empty values array.';
           } else {
-            // Always derive the range from the top-left cell + values dimensions
-            // so a mismatch between the AI-provided range and the data never throws.
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const values = args.values;
             const numRows = values.length;
@@ -1341,18 +1345,17 @@ async function executeTool(toolName, args) {
         }
 
         else if (toolName === 'set_formula') {
-          // args: { sheet, cell, formula }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const cell = sheet.getRange(args.cell);
-          cell.formulas = [[args.formula]];
-          await context.sync();
-          result = `Set formula ${args.formula} in ${args.sheet}!${args.cell}`;
+          if (need(['sheet','cell','formula'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.getRange(args.cell).formulas = [[args.formula]];
+            await context.sync();
+            result = `Set formula ${args.formula} in ${args.sheet}!${args.cell}`;
+          }
         }
 
         else if (toolName === 'set_formulas_range') {
-          // args: { sheet, range, formulas: [[...],[...]] }
-          if (!args.sheet || !args.range || !Array.isArray(args.formulas) || args.formulas.length === 0) {
-            result = 'ERROR: set_formulas_range requires sheet, range, and a non-empty formulas array.';
+          if (!need(['sheet','range']) || !Array.isArray(args.formulas) || args.formulas.length === 0) {
+            result = result || 'ERROR: set_formulas_range requires sheet, range, and a non-empty formulas array.';
           } else {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const formulas = args.formulas;
@@ -1367,151 +1370,147 @@ async function executeTool(toolName, args) {
         }
 
         else if (toolName === 'format_range') {
-          // args: { sheet, range, bold?, italic?, fontSize?, color?, fillColor?, numberFormat?, wrapText?, horizontalAlignment? }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const rng = sheet.getRange(args.range);
-          rng.load('format');
-          if (args.bold !== undefined)       rng.format.font.bold = args.bold;
-          if (args.italic !== undefined)     rng.format.font.italic = args.italic;
-          if (args.fontSize !== undefined)   rng.format.font.size = args.fontSize;
-          if (args.color !== undefined)      rng.format.font.color = args.color;
-          if (args.fillColor !== undefined)  rng.format.fill.color = args.fillColor;
-          if (args.numberFormat !== undefined) rng.numberFormat = [[args.numberFormat]];
-          if (args.wrapText !== undefined)   rng.format.wrapText = args.wrapText;
-          if (args.horizontalAlignment !== undefined) rng.format.horizontalAlignment = args.horizontalAlignment;
-          await context.sync();
-          result = `Formatted ${args.sheet}!${args.range}`;
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            if (args.bold !== undefined)        rng.format.font.bold = args.bold;
+            if (args.italic !== undefined)      rng.format.font.italic = args.italic;
+            if (args.fontSize !== undefined)    rng.format.font.size = args.fontSize;
+            if (args.color !== undefined)       rng.format.font.color = args.color;
+            if (args.fillColor !== undefined)   rng.format.fill.color = args.fillColor;
+            if (args.numberFormat !== undefined) rng.numberFormat = [[args.numberFormat]];
+            if (args.wrapText !== undefined)    rng.format.wrapText = args.wrapText;
+            if (args.horizontalAlignment !== undefined) rng.format.horizontalAlignment = args.horizontalAlignment;
+            await context.sync();
+            result = `Formatted ${args.sheet}!${args.range}`;
+          }
         }
 
         else if (toolName === 'clear_range') {
-          // args: { sheet, range, clearType? } clearType: 'All','Contents','Formats'
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const rng = sheet.getRange(args.range);
-          rng.clear(args.clearType || 'All');
-          await context.sync();
-          result = `Cleared ${args.sheet}!${args.range}`;
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.getRange(args.range).clear(args.clearType || 'All');
+            await context.sync();
+            result = `Cleared ${args.sheet}!${args.range}`;
+          }
         }
 
         else if (toolName === 'add_sheet') {
-          // args: { name, position? }
-          const existing = context.workbook.worksheets;
-          existing.load('items/name');
-          await context.sync();
-          const names = existing.items.map(s => s.name);
-          if (names.includes(args.name)) {
-            result = `Sheet "${args.name}" already exists`;
-          } else {
-            context.workbook.worksheets.add(args.name);
+          if (need(['name'])) {
+            const existing = context.workbook.worksheets;
+            existing.load('items/name');
             await context.sync();
-            result = `Added sheet "${args.name}"`;
+            if (existing.items.map(s => s.name).includes(args.name)) {
+              result = `Sheet "${args.name}" already exists`;
+            } else {
+              context.workbook.worksheets.add(args.name);
+              await context.sync();
+              result = `Added sheet "${args.name}"`;
+            }
           }
         }
 
         else if (toolName === 'rename_sheet') {
-          // args: { oldName, newName }
-          const sheet = context.workbook.worksheets.getItem(args.oldName);
-          sheet.name = args.newName;
-          await context.sync();
-          result = `Renamed sheet "${args.oldName}" to "${args.newName}"`;
+          if (need(['oldName','newName'])) {
+            const sheet = context.workbook.worksheets.getItem(args.oldName);
+            sheet.name = args.newName;
+            await context.sync();
+            result = `Renamed sheet "${args.oldName}" to "${args.newName}"`;
+          }
         }
 
         else if (toolName === 'delete_sheet') {
-          // args: { name }
-          const sheet = context.workbook.worksheets.getItem(args.name);
-          sheet.delete();
-          await context.sync();
-          result = `Deleted sheet "${args.name}"`;
+          if (need(['name'])) {
+            context.workbook.worksheets.getItem(args.name).delete();
+            await context.sync();
+            result = `Deleted sheet "${args.name}"`;
+          }
         }
 
         else if (toolName === 'activate_sheet') {
-          // args: { name }
-          const sheet = context.workbook.worksheets.getItem(args.name);
-          sheet.activate();
-          await context.sync();
-          result = `Activated sheet "${args.name}"`;
+          if (need(['name'])) {
+            context.workbook.worksheets.getItem(args.name).activate();
+            await context.sync();
+            result = `Activated sheet "${args.name}"`;
+          }
         }
 
         else if (toolName === 'create_chart') {
-          // args: { sheet, dataRange, chartType, title?, targetCell? }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const dataRange = sheet.getRange(args.dataRange);
-          const chartTypeMap = {
-            bar:     Excel.ChartType.barClustered,
-            column:  Excel.ChartType.columnClustered,
-            line:    Excel.ChartType.line,
-            pie:     Excel.ChartType.pie,
-            area:    Excel.ChartType.area,
-            scatter: Excel.ChartType.xyscatter
-          };
-          const ct = chartTypeMap[(args.chartType || 'column').toLowerCase()] || Excel.ChartType.columnClustered;
-          const chart = sheet.charts.add(ct, dataRange, Excel.ChartSeriesBy.auto);
-          if (args.title) chart.title.text = args.title;
-          if (args.targetCell) {
-            const top = sheet.getRange(args.targetCell);
-            top.load(['top','left']);
+          if (need(['sheet','dataRange','chartType'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const chartTypeMap = {
+              bar: Excel.ChartType.barClustered, column: Excel.ChartType.columnClustered,
+              line: Excel.ChartType.line, pie: Excel.ChartType.pie,
+              area: Excel.ChartType.area, scatter: Excel.ChartType.xyscatter
+            };
+            const ct = chartTypeMap[(args.chartType || 'column').toLowerCase()] || Excel.ChartType.columnClustered;
+            const dataRange = sheet.getRange(args.dataRange);
+            const chart = sheet.charts.add(ct, dataRange, Excel.ChartSeriesBy.auto);
+            if (args.title) { chart.title.visible = true; chart.title.text = args.title; }
+            chart.width = 400; chart.height = 260;
+            if (args.targetCell) {
+              const anchor = sheet.getRange(args.targetCell);
+              anchor.load(['top','left']);
+              await context.sync();
+              chart.top = anchor.top;
+              chart.left = anchor.left;
+            }
             await context.sync();
-            chart.top = top.top;
-            chart.left = top.left;
+            result = `Created ${args.chartType} chart "${args.title || ''}" on ${args.sheet}`;
           }
-          chart.width  = 400;
-          chart.height = 260;
-          await context.sync();
-          result = `Created ${args.chartType || 'column'} chart "${args.title || ''}" on ${args.sheet}`;
         }
 
         else if (toolName === 'sort_range') {
-          // args: { sheet, range, columnIndex, ascending? }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const rng = sheet.getRange(args.range);
-          rng.sort.apply([{
-            key: args.columnIndex || 0,
-            ascending: args.ascending !== false
-          }]);
-          await context.sync();
-          result = `Sorted ${args.sheet}!${args.range} by column index ${args.columnIndex || 0}`;
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.getRange(args.range).sort.apply([{
+              key: args.columnIndex || 0,
+              ascending: args.ascending !== false
+            }]);
+            await context.sync();
+            result = `Sorted ${args.sheet}!${args.range} by column index ${args.columnIndex || 0}`;
+          }
         }
 
         else if (toolName === 'auto_fit') {
-          // args: { sheet, range? }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          if (args.range) {
-            sheet.getRange(args.range).format.autofitColumns();
-            sheet.getRange(args.range).format.autofitRows();
-          } else {
-            sheet.getUsedRange().format.autofitColumns();
-            sheet.getUsedRange().format.autofitRows();
+          if (need(['sheet'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const target = args.range ? sheet.getRange(args.range) : sheet.getUsedRange();
+            target.format.autofitColumns();
+            target.format.autofitRows();
+            await context.sync();
+            result = `Auto-fitted columns/rows on ${args.sheet}`;
           }
-          await context.sync();
-          result = `Auto-fitted columns/rows on ${args.sheet}`;
         }
 
         else if (toolName === 'set_column_width') {
-          // args: { sheet, range, width }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          sheet.getRange(args.range).format.columnWidth = args.width;
-          await context.sync();
-          result = `Set column width to ${args.width} on ${args.sheet}!${args.range}`;
+          if (need(['sheet','range','width'])) {
+            context.workbook.worksheets.getItem(args.sheet).getRange(args.range).format.columnWidth = args.width;
+            await context.sync();
+            result = `Set column width to ${args.width} on ${args.sheet}!${args.range}`;
+          }
         }
 
         else if (toolName === 'add_borders') {
-          // args: { sheet, range, style? }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const rng = sheet.getRange(args.range);
-          const sides = ['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight','InsideHorizontal','InsideVertical'];
-          sides.forEach(s => {
-            rng.format.borders.getItem(s).style = args.style || 'Thin';
-          });
-          await context.sync();
-          result = `Added borders to ${args.sheet}!${args.range}`;
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            ['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight','InsideHorizontal','InsideVertical'].forEach(s => {
+              rng.format.borders.getItem(s).style = args.style || 'Thin';
+            });
+            await context.sync();
+            result = `Added borders to ${args.sheet}!${args.range}`;
+          }
         }
 
         else if (toolName === 'read_range') {
-          // args: { sheet, range } — returns values as string
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const rng = sheet.getRange(args.range);
-          rng.load('values');
-          await context.sync();
-          result = JSON.stringify(rng.values);
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            rng.load('values');
+            await context.sync();
+            result = JSON.stringify(rng.values);
+          }
         }
 
         else if (toolName === 'get_sheet_names') {
