@@ -1519,11 +1519,10 @@ async function callQwen(messages, tools) {
     body.tool_choice = 'auto';
   }
 
-  // Clean the base URL: strip trailing slash and accidental /chat/completions suffix
-  let qwBaseUrl = (cfg.qw.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/chat\/completions$/i, '');
+  // Clean the base URL: ensure https://, strip trailing slash and accidental /chat/completions suffix
+  let qwBaseUrl = (cfg.qw.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
+  if (qwBaseUrl && !qwBaseUrl.startsWith('http')) qwBaseUrl = 'https://' + qwBaseUrl;
+  qwBaseUrl = qwBaseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
 
   const res = await fetch(qwBaseUrl + '/chat/completions', {
     method: 'POST',
