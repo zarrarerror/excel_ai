@@ -549,6 +549,7 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
       </div>
       <textarea id="user-input" placeholder="Ask the agent to do something in Excel..." rows="1"></textarea>
+      <button class="icon-btn" id="undo-btn" title="Undo last write" style="border-color:var(--muted); color:var(--muted);" disabled onclick="applyUndo()">↩</button>
       <button class="icon-btn" id="stop-btn" title="Stop agent" style="display:none; border-color:var(--danger); color:var(--danger);">⏹</button>
       <button class="send-btn" id="send-btn" title="Send">▶</button>
     </div>
@@ -1315,6 +1316,38 @@ function workbookToText(wb) {
 // ═══════════════════════════════════════════════════════════════
 //  EXCEL TOOL EXECUTOR
 // ═══════════════════════════════════════════════════════════════
+// ── Step 3: Global undo stack + persistent agent memory ──
+let undoStack = [];   // [{sheet, range, topLeft, values}]
+
+let agentMemory = {};
+try { agentMemory = JSON.parse(storage.getItem('agentMemory') || '{}'); } catch(e) { agentMemory = {}; }
+
+function saveMemoryKey(key, value) {
+  agentMemory[key] = value;
+  try { storage.setItem('agentMemory', JSON.stringify(agentMemory)); } catch(e) {}
+}
+
+function applyUndo() {
+  if (undoStack.length === 0) {
+    addMessage('system', 'Nothing to undo.');
+    return;
+  }
+  const snap = undoStack.pop();
+  Excel.run(async function(context) {
+    const sheet = context.workbook.worksheets.getItem(snap.sheet);
+    const rng = sheet.getRange(snap.topLeft).getResizedRange(snap.values.length - 1, snap.values[0].length - 1);
+    rng.values = snap.values;
+    await context.sync();
+    addMessage('system', '↩ Undone: restored ' + snap.sheet + '!' + snap.range);
+    updateUndoBtn();
+  }).catch(function(e) { addMessage('error', 'Undo failed: ' + e.message); });
+}
+
+function updateUndoBtn() {
+  const btn = document.getElementById('undo-btn');
+  if (btn) btn.disabled = (undoStack.length === 0);
+}
+
 async function executeTool(toolName, args) {
   return new Promise((resolve, reject) => {
     Excel.run(async (context) => {
@@ -1337,6 +1370,15 @@ async function executeTool(toolName, args) {
             const numRows = values.length;
             const numCols = values[0] ? values[0].length : 1;
             const topLeft = args.range.split(':')[0];
+            // Save undo snapshot before overwriting
+            try {
+              const snapRng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
+              snapRng.load('values');
+              await context.sync();
+              undoStack.push({ sheet: args.sheet, range: args.range, topLeft, values: snapRng.values });
+              if (undoStack.length > 10) undoStack.shift();
+              updateUndoBtn();
+            } catch(e) { /* snapshot failed — skip silently */ }
             const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
             rng.values = values;
             await context.sync();
@@ -1662,6 +1704,31 @@ async function executeTool(toolName, args) {
           }
         }
 
+        else if (toolName === 'save_memory') {
+          if (need(['key','value'])) {
+            saveMemoryKey(args.key, args.value);
+            result = 'Memory saved: "' + args.key + '" = "' + args.value + '"';
+          }
+        }
+        else if (toolName === 'get_memory') {
+          const memKeys = (args.keys && args.keys.length) ? args.keys : Object.keys(agentMemory);
+          const memResult = {};
+          memKeys.forEach(function(k) { if (agentMemory[k] !== undefined) memResult[k] = agentMemory[k]; });
+          result = Object.keys(memResult).length > 0 ? JSON.stringify(memResult) : 'Memory is empty.';
+        }
+        else if (toolName === 'undo_last_action') {
+          if (undoStack.length === 0) {
+            result = 'Nothing to undo — undo stack is empty.';
+          } else {
+            const snap = undoStack.pop();
+            const snapSheet = context.workbook.worksheets.getItem(snap.sheet);
+            const snapRng = snapSheet.getRange(snap.topLeft).getResizedRange(snap.values.length - 1, snap.values[0].length - 1);
+            snapRng.values = snap.values;
+            await context.sync();
+            updateUndoBtn();
+            result = 'Undone: restored previous values in ' + snap.sheet + '!' + snap.range;
+          }
+        }
         else {
           result = `Unknown tool: ${toolName}`;
         }
@@ -2533,6 +2600,43 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'save_memory',
+      description: 'Save a key-value fact to persistent agent memory. Use this to remember user preferences, sheet names, column positions, or any reusable context for future sessions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          key:   { type: 'string', description: 'Memory key, e.g. "preferred_sheet" or "currency"' },
+          value: { type: 'string', description: 'Value to remember' }
+        },
+        required: ['key','value']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_memory',
+      description: 'Retrieve previously saved memory keys. Call at the start of a task if user context might be relevant.',
+      parameters: {
+        type: 'object',
+        properties: {
+          keys: { type: 'array', items: { type: 'string' }, description: 'Specific keys to fetch. Omit to get all memory.' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'undo_last_action',
+      description: 'Revert the last write_range operation, restoring the previous cell values.',
+      parameters: { type: 'object', properties: {}, required: [] }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'task_complete',
       description: 'Call this when the task is fully finished. Provide a summary of what was done.',
       parameters: {
@@ -2573,7 +2677,8 @@ FORMATTING:   format_range, add_borders, merge_cells, conditional_format
 STRUCTURE:    insert_rows, delete_rows, insert_columns, delete_columns, auto_fit, freeze_panes
 SHEETS:       add_sheet, rename_sheet, delete_sheet, activate_sheet, get_sheet_names
 CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
-OTHER:        sort_range, clear_range, task_complete
+MEMORY:       save_memory, get_memory
+OTHER:        sort_range, clear_range, undo_last_action, task_complete
 
 ═══════════════════════════════════════
 PROFESSIONAL FORMATTING STANDARDS
@@ -2648,6 +2753,11 @@ RULES
     e) Format the summary table professionally, then create a chart from it
     f) NEVER use =SUMIF on an empty label cell — write label values first, formulas second
 11. CHART RULE: Only chart ranges that have actual data. Use read_range to verify values exist before charting.
+12. PLANNING RULE: On the FIRST response of any task, output a brief '📋 Plan:' section as plain text listing your intended steps BEFORE calling any tools. Keep it to 3-5 bullet points.
+13. MEMORY RULE: At the start of complex tasks, call get_memory to check for saved user preferences. Use save_memory to remember sheet names, column layouts, or user preferences for future sessions.
+
+AGENT MEMORY (from previous sessions):
+${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
 
 CURRENT WORKBOOK:
 ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
@@ -2696,6 +2806,11 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
       break;
     }
 
+    // Show plan / commentary text BEFORE executing tools
+    if (assistantMsg.content && assistantMsg.content.trim()) {
+      addMessage('agent', assistantMsg.content);
+    }
+
     // Process each tool call
     let taskDone = false;
 
@@ -2741,11 +2856,6 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
     }
 
     if (taskDone) break;
-
-    // If assistantMsg had text alongside tools, show it
-    if (assistantMsg.content && assistantMsg.content.trim()) {
-      addMessage('agent', assistantMsg.content);
-    }
   }
 
   if (iterations >= maxIter && !stopRequested) {
