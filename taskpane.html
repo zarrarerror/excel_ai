@@ -188,6 +188,26 @@
     border-left: 2px solid var(--danger);
     color: #ff8fa0;
   }
+  .msg-copy-btn {
+    display: none;
+    position: absolute;
+    top: 6px; right: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 10px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .msg-copy-btn:hover { color: var(--accent); }
+  .msg.agent:hover .msg-copy-btn,
+  .msg.system:hover .msg-copy-btn { display: block; }
+  .msg.agent .msg-bubble,
+  .msg.system .msg-bubble { position: relative; }
+  .msg-wrap { position: relative; }
+
   .msg.tool-call .msg-bubble {
     background: #0d1a2a;
     border: 1px solid #1a2f4a;
@@ -274,8 +294,8 @@
     resize: none;
     outline: none;
     line-height: 1.5;
-    min-height: 38px;
-    max-height: 100px;
+    min-height: 56px;
+    max-height: 130px;
     transition: border-color 0.2s;
   }
   textarea#user-input:focus { border-color: var(--accent); }
@@ -547,8 +567,10 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
     <div class="input-row">
       <div class="input-btns">
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
+        <button class="icon-btn" id="export-btn" title="Export conversation" style="font-size:13px;">💾</button>
+        <button class="icon-btn" id="clear-history-btn" title="Clear chat history" style="font-size:13px; color:var(--muted);">🗑</button>
       </div>
-      <textarea id="user-input" placeholder="Ask the agent to do something in Excel..." rows="1"></textarea>
+      <textarea id="user-input" placeholder="Ask the agent to do something in Excel..." rows="2"></textarea>
       <button class="icon-btn" id="undo-btn" title="Undo last write" style="border-color:var(--muted); color:var(--muted);" disabled onclick="applyUndo()">↩</button>
       <button class="icon-btn" id="stop-btn" title="Stop agent" style="display:none; border-color:var(--danger); color:var(--danger);">⏹</button>
       <button class="send-btn" id="send-btn" title="Send">▶</button>
@@ -884,6 +906,7 @@ window._appStarted = false;
 function _onBothReady() {
   if (window._appStarted) return;
   window._appStarted = true;
+  loadChatHistory();
   try {
     if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
       officeReady = true;
@@ -905,6 +928,10 @@ const typingEl     = document.getElementById('typing-indicator');
 const inputEl      = document.getElementById('user-input');
 const sendBtn      = document.getElementById('send-btn');
 const stopBtn      = document.getElementById('stop-btn');
+const exportBtn    = document.getElementById('export-btn');
+const clearHistBtn = document.getElementById('clear-history-btn');
+if (exportBtn)    exportBtn.addEventListener('click', exportConversation);
+if (clearHistBtn) clearHistBtn.addEventListener('click', clearChatHistory);
 const attachBtn    = document.getElementById('attach-btn');
 const fileInput    = document.getElementById('file-input');
 const filePreview  = document.getElementById('attached-file-preview');
@@ -1144,10 +1171,85 @@ function addMessage(type, text) {
   const labels = { user: 'You', agent: 'Shayntech AI', system: 'System', error: 'Error', 'tool-call': 'Action' };
   const div = document.createElement('div');
   div.className = 'msg ' + type;
-  div.innerHTML = `<span class="msg-label">${labels[type] || type}</span><div class="msg-bubble">${escapeHtml(text)}</div>`;
+  const copyBtn = (type === 'agent' || type === 'system')
+    ? '<button class="msg-copy-btn" onclick="copyMsgText(this)" title="Copy">Copy</button>'
+    : '';
+  div.innerHTML = `<span class="msg-label">${labels[type] || type}</span><div class="msg-bubble">${copyBtn}${escapeHtml(text)}</div>`;
   messagesEl.insertBefore(div, typingEl);
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  // Persist chat history (max 60 messages)
+  try {
+    const hist = JSON.parse(storage.getItem('chatHistory') || '[]');
+    hist.push({ type, text, ts: Date.now() });
+    if (hist.length > 60) hist.splice(0, hist.length - 60);
+    storage.setItem('chatHistory', JSON.stringify(hist));
+  } catch(e) {}
   return div;
+}
+
+function copyMsgText(btn) {
+  const bubble = btn.parentElement;
+  const text = bubble.innerText.replace('Copy', '').trim();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+    }).catch(function() { fallbackCopy(text, btn); });
+  } else { fallbackCopy(text, btn); }
+}
+
+function fallbackCopy(text, btn) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy'; }, 1500); } } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+function exportConversation() {
+  try {
+    const hist = JSON.parse(storage.getItem('chatHistory') || '[]');
+    if (hist.length === 0) { addMessage('system', 'No conversation history to export.'); return; }
+    const labels = { user: 'You', agent: 'Shayntech AI', system: 'System', error: 'Error', 'tool-call': 'Action' };
+    const lines = hist.map(function(m) {
+      const d = new Date(m.ts).toLocaleTimeString();
+      return '[' + d + '] ' + (labels[m.type] || m.type) + ':\n' + m.text;
+    });
+    const blob = new Blob([lines.join('\n\n---\n\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = 'shayntech-ai-chat-' + new Date().toISOString().slice(0,10) + '.txt';
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { addMessage('error', 'Export failed: ' + e.message); }
+}
+
+function clearChatHistory() {
+  if (!confirm('Clear all chat history?')) return;
+  storage.setItem('chatHistory', '[]');
+  // Remove all messages except the welcome bubble
+  const msgs = messagesEl.querySelectorAll('.msg');
+  msgs.forEach(function(m) { m.remove(); });
+  addMessage('system', 'Chat history cleared.');
+}
+
+function loadChatHistory() {
+  try {
+    const hist = JSON.parse(storage.getItem('chatHistory') || '[]');
+    if (hist.length === 0) return;
+    // Show last 20 messages on load
+    const recent = hist.slice(-20);
+    recent.forEach(function(m) {
+      const labels = { user: 'You', agent: 'Shayntech AI', system: 'System', error: 'Error', 'tool-call': 'Action' };
+      const div = document.createElement('div');
+      div.className = 'msg ' + m.type;
+      const copyBtn = (m.type === 'agent' || m.type === 'system')
+        ? '<button class="msg-copy-btn" onclick="copyMsgText(this)" title="Copy">Copy</button>'
+        : '';
+      div.innerHTML = '<span class="msg-label">' + (labels[m.type] || m.type) + '</span><div class="msg-bubble">' + copyBtn + escapeHtml(m.text) + '</div>';
+      messagesEl.insertBefore(div, typingEl);
+    });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch(e) {}
 }
 
 function escapeHtml(str) {
