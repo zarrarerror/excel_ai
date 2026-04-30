@@ -1825,6 +1825,168 @@ async function executeTool(toolName, args) {
           }
         }
 
+        else if (toolName === 'analyze_data') {
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            rng.load(['values','rowCount','columnCount']);
+            await context.sync();
+            const values = rng.values;
+            const hasHeader = args.has_header !== false;
+            const headers = hasHeader ? values[0] : null;
+            const dataRows = hasHeader ? values.slice(1) : values;
+            const colCount = values[0] ? values[0].length : 0;
+            const stats = {};
+            for (let c = 0; c < colCount; c++) {
+              const colName = (headers && headers[c] !== '' && headers[c] !== null) ? String(headers[c]) : ('Col' + (c+1));
+              const colVals = dataRows.map(function(r) { return r[c]; });
+              const nums = colVals.filter(function(v) { return typeof v === 'number' && !isNaN(v); });
+              const blanks = colVals.filter(function(v) { return v === '' || v === null || v === undefined; }).length;
+              if (nums.length === 0) {
+                stats[colName] = { type: 'text', count: colVals.length - blanks, blank: blanks };
+              } else {
+                nums.sort(function(a,b){return a-b;});
+                const sum = nums.reduce(function(a,b){return a+b;}, 0);
+                const mean = sum / nums.length;
+                const median = nums.length % 2 === 0 ? (nums[nums.length/2-1]+nums[nums.length/2])/2 : nums[Math.floor(nums.length/2)];
+                const variance = nums.reduce(function(a,b){return a+Math.pow(b-mean,2);}, 0) / nums.length;
+                const stdev = Math.sqrt(variance);
+                const q1 = nums[Math.floor(nums.length*0.25)];
+                const q3 = nums[Math.floor(nums.length*0.75)];
+                const iqr = q3 - q1;
+                const outliers = nums.filter(function(v){return v < q1-1.5*iqr || v > q3+1.5*iqr;}).length;
+                stats[colName] = { type:'numeric', count:nums.length, blank:blanks,
+                  min:Math.round(nums[0]*100)/100, max:Math.round(nums[nums.length-1]*100)/100,
+                  sum:Math.round(sum*100)/100, mean:Math.round(mean*100)/100,
+                  median:Math.round(median*100)/100, stdev:Math.round(stdev*100)/100,
+                  q1:Math.round(q1*100)/100, q3:Math.round(q3*100)/100, outliers };
+              }
+            }
+            result = JSON.stringify({ rows: dataRows.length, columns: colCount, stats }, null, 2);
+          }
+        }
+        else if (toolName === 'clean_data') {
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            rng.load('values');
+            await context.sync();
+            const vals = rng.values;
+            let trimCount = 0, blankCount = 0;
+            const fillBlank = (args.fill_blank !== undefined && args.fill_blank !== null && args.fill_blank !== '') ? args.fill_blank : null;
+            const cleaned = vals.map(function(row) {
+              return row.map(function(cell) {
+                if (typeof cell === 'string') {
+                  const t = cell.trim();
+                  if (t !== cell) trimCount++;
+                  if (t === '' && fillBlank !== null) { blankCount++; return fillBlank; }
+                  return t;
+                }
+                if ((cell === null || cell === '') && fillBlank !== null) { blankCount++; return fillBlank; }
+                return cell;
+              });
+            });
+            const topLeft = args.range.split(':')[0];
+            sheet.getRange(topLeft).getResizedRange(cleaned.length-1, cleaned[0].length-1).values = cleaned;
+            await context.sync();
+            result = 'Cleaned ' + args.sheet + '!' + args.range + ': trimmed ' + trimCount + ' cells, filled ' + blankCount + ' blanks.';
+          }
+        }
+        else if (toolName === 'highlight_outliers') {
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            rng.load(['values','rowCount','columnCount']);
+            await context.sync();
+            const vals = rng.values;
+            const flat = [].concat.apply([], vals).filter(function(v){return typeof v==='number' && !isNaN(v);});
+            if (flat.length === 0) { result = 'No numeric values found for outlier detection.'; }
+            else {
+              flat.sort(function(a,b){return a-b;});
+              const q1 = flat[Math.floor(flat.length*0.25)];
+              const q3 = flat[Math.floor(flat.length*0.75)];
+              const iqr = q3-q1, lower = q1-1.5*iqr, upper = q3+1.5*iqr;
+              let cnt = 0;
+              for (let r=0; r<vals.length; r++) {
+                for (let c=0; c<vals[r].length; c++) {
+                  const v = vals[r][c];
+                  if (typeof v==='number' && (v<lower || v>upper)) {
+                    const cell = sheet.getRange(args.range).getCell(r, c);
+                    cell.format.fill.color = '#C00000';
+                    cell.format.font.color = '#FFFFFF';
+                    cell.format.font.bold = true;
+                    cnt++;
+                  }
+                }
+              }
+              await context.sync();
+              result = 'Highlighted ' + cnt + ' outlier(s) in ' + args.sheet + '!' + args.range + ' (IQR bounds: [' + lower.toFixed(2) + ', ' + upper.toFixed(2) + ']).';
+            }
+          }
+        }
+        else if (toolName === 'add_data_validation') {
+          if (need(['sheet','range','type'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            if (args.type === 'list' && args.values && args.values.length > 0) {
+              rng.dataValidation.rule = { list: { inCellDropDown: true, source: args.values.join(',') } };
+              rng.dataValidation.prompt = { showPrompt: true, title: 'Select value', message: 'Choose from the dropdown list.' };
+              await context.sync();
+              result = 'Added dropdown validation to ' + args.sheet + '!' + args.range + ' with options: ' + args.values.join(', ');
+            } else if (args.type === 'whole' || args.type === 'decimal') {
+              const minV = args.min !== undefined ? args.min : 0;
+              const maxV = args.max !== undefined ? args.max : 1000000;
+              rng.dataValidation.rule = { wholeNumber: { formula1: String(minV), formula2: String(maxV), operator: 'Between' } };
+              await context.sync();
+              result = 'Added number validation (' + minV + ' to ' + maxV + ') to ' + args.sheet + '!' + args.range;
+            } else { result = 'Unsupported validation type: ' + args.type; }
+          }
+        }
+        else if (toolName === 'smart_fill') {
+          if (need(['sheet','start','count','type'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const count = Math.max(1, parseInt(args.count) || 1);
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            let fillVals = [];
+            if (args.type === 'months') {
+              const startStr = args.start_val || 'Jan 2026';
+              const parts = startStr.split(' ');
+              let mIdx = months.indexOf(parts[0]); if (mIdx < 0) mIdx = 0;
+              let year = parseInt(parts[1]) || 2026;
+              for (let i=0; i<count; i++) { fillVals.push([months[mIdx] + ' ' + year]); mIdx++; if(mIdx>=12){mIdx=0;year++;} }
+            } else if (args.type === 'numbers') {
+              let num = parseFloat(args.start_val) || 1;
+              const step = args.step || 1;
+              for (let i=0; i<count; i++) { fillVals.push([Math.round(num*100)/100]); num += step; }
+            } else if (args.type === 'dates') {
+              let d = new Date(args.start_val || '2026-01-01');
+              for (let i=0; i<count; i++) { fillVals.push([d.toLocaleDateString('en-GB')]); d.setDate(d.getDate()+1); }
+            } else if (args.type === 'custom' && args.custom && args.custom.length > 0) {
+              for (let i=0; i<count; i++) { fillVals.push([args.custom[i % args.custom.length]]); }
+            }
+            if (fillVals.length > 0) {
+              sheet.getRange(args.start).getResizedRange(fillVals.length-1, 0).values = fillVals;
+              await context.sync();
+              result = 'Filled ' + fillVals.length + ' cells starting at ' + args.sheet + '!' + args.start;
+            } else { result = 'smart_fill: could not generate series for type=' + args.type; }
+          }
+        }
+        else if (toolName === 'protect_sheet') {
+          if (need(['sheet'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.protection.protect({ allowFormatCells: false, allowFormatColumns: false, allowInsertRows: false, allowDeleteRows: false }, args.password || '');
+            await context.sync();
+            result = 'Sheet "' + args.sheet + '" is now protected.';
+          }
+        }
+        else if (toolName === 'unprotect_sheet') {
+          if (need(['sheet'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.protection.unprotect(args.password || '');
+            await context.sync();
+            result = 'Sheet "' + args.sheet + '" is now unprotected.';
+          }
+        }
         else if (toolName === 'save_memory') {
           if (need(['key','value'])) {
             saveMemoryKey(args.key, args.value);
@@ -2721,6 +2883,122 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'analyze_data',
+      description: 'Read a range and compute statistical summary (count, min, max, mean, median, stdev, outlier count, blank count) for each column. Returns JSON. Use this before creating data dashboards or when user asks to analyze or summarize data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:      { type: 'string', description: 'Worksheet name' },
+          range:      { type: 'string', description: 'Range to analyze e.g. A1:E100' },
+          has_header: { type: 'boolean', description: 'True if first row is a header row (default true)' }
+        },
+        required: ['sheet','range']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'clean_data',
+      description: 'Clean a range: trim whitespace from text cells, fill blank cells with a specified value. Returns count of changes made.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:      { type: 'string', description: 'Worksheet name' },
+          range:      { type: 'string', description: 'Range to clean e.g. A1:E100' },
+          fill_blank: { type: 'string', description: 'Value to fill blank cells with, e.g. "N/A" or "0". Omit to leave blanks.' }
+        },
+        required: ['sheet','range']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'highlight_outliers',
+      description: 'Detect and highlight statistical outliers in a numeric range using the IQR method. Highlights outlier cells in red.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string', description: 'Worksheet name' },
+          range: { type: 'string', description: 'Numeric range to check e.g. B2:B100' }
+        },
+        required: ['sheet','range']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_data_validation',
+      description: 'Add data validation to a range. Type "list" adds a dropdown. Type "whole" or "decimal" restricts to number ranges.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:  { type: 'string', description: 'Worksheet name' },
+          range:  { type: 'string', description: 'Range to validate e.g. B2:B100' },
+          type:   { type: 'string', enum: ['list','whole','decimal'], description: 'Validation type' },
+          values: { type: 'array', items: { type: 'string' }, description: 'Options for list type e.g. ["Yes","No","Pending"]' },
+          min:    { type: 'number', description: 'Minimum value for whole/decimal type' },
+          max:    { type: 'number', description: 'Maximum value for whole/decimal type' }
+        },
+        required: ['sheet','range','type']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'smart_fill',
+      description: 'Fill a series downward from a starting cell. Detects pattern type automatically (number increment, month names, date series, or custom list).',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:     { type: 'string', description: 'Worksheet name' },
+          start:     { type: 'string', description: 'Top-left cell to start from e.g. A2' },
+          count:     { type: 'number', description: 'How many rows to fill' },
+          type:      { type: 'string', enum: ['months','numbers','dates','custom'], description: 'Series type' },
+          start_val: { type: 'string', description: 'Starting value e.g. "Jan 2026", "1", "2026-01-01"' },
+          step:      { type: 'number', description: 'Increment step for numbers (default 1)' },
+          custom:    { type: 'array', items: { type: 'string' }, description: 'Custom list to repeat e.g. ["Mon","Tue","Wed"]' }
+        },
+        required: ['sheet','start','count','type']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'protect_sheet',
+      description: 'Protect a worksheet to prevent accidental edits. Optionally set a password.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:    { type: 'string', description: 'Worksheet name' },
+          password: { type: 'string', description: 'Optional password' }
+        },
+        required: ['sheet']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'unprotect_sheet',
+      description: 'Remove protection from a worksheet.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:    { type: 'string', description: 'Worksheet name' },
+          password: { type: 'string', description: 'Password if one was set' }
+        },
+        required: ['sheet']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'save_memory',
       description: 'Save a key-value fact to persistent agent memory. Use this to remember user preferences, sheet names, column positions, or any reusable context for future sessions.',
       parameters: {
@@ -2799,7 +3077,9 @@ STRUCTURE:    insert_rows, delete_rows, insert_columns, delete_columns, auto_fit
 SHEETS:       add_sheet, rename_sheet, delete_sheet, activate_sheet, get_sheet_names
 CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
 MEMORY:       save_memory, get_memory
-OTHER:        sort_range, clear_range, undo_last_action, task_complete
+ANALYSIS:     analyze_data, clean_data, highlight_outliers
+VALIDATION:   add_data_validation
+UTILS:        smart_fill, protect_sheet, unprotect_sheet, sort_range, clear_range, undo_last_action, task_complete
 
 ═══════════════════════════════════════
 PROFESSIONAL FORMATTING STANDARDS
@@ -2876,6 +3156,11 @@ RULES
 11. CHART RULE: Only chart ranges that have actual data. Use read_range to verify values exist before charting.
 12. PLANNING RULE: On the FIRST response of any task, output a brief '📋 Plan:' section as plain text listing your intended steps BEFORE calling any tools. Keep it to 3-5 bullet points.
 13. MEMORY RULE: At the start of complex tasks, call get_memory to check for saved user preferences. Use save_memory to remember sheet names, column layouts, or user preferences for future sessions.
+14. DATA ANALYSIS RULE: When user asks to "analyze", "summarize", or "check" data — always call analyze_data first to get statistics, then write a clean summary table to a new sheet or below the data. Include: row count, column stats (min/max/mean/median/stdev), blank counts, and outlier count.
+15. SMART CHART RULE: Choose chart type based on data: time series → line, category comparison → column/bar, part of whole → pie, two numeric variables → scatter, multiple KPIs over time → area.
+16. AUTO CLEAN RULE: If analyze_data reveals blank cells or text inconsistencies, proactively offer or call clean_data before analysis.
+17. OUTLIER RULE: For financial or numeric datasets, always call highlight_outliers after writing data to flag anomalies automatically.
+18. DASHBOARD RULE: After analyzing data, create a "Dashboard" sheet with: (a) a stats summary table, (b) a chart of the most important metric, (c) conditional formatting on key columns. Use save_memory to remember the dashboard sheet name.
 
 AGENT MEMORY (from previous sessions):
 ${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
