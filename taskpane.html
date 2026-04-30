@@ -2548,7 +2548,7 @@ RULES
 9. Be precise with cell references — you are modifying the user's real data.
 
 CURRENT WORKBOOK:
-${workbookText}${fileContent ? \`\n\nATTACHED FILE: \${fileName}\n\${'─'.repeat(40)}\n\${fileContent.slice(0, 8000)}\${fileContent.length > 8000 ? '\n...[truncated]' : ''}\` : ''}`;
+${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
 
   // 3. Conversation history for this agent run
   const messages = [
