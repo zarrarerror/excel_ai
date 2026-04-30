@@ -1495,9 +1495,34 @@ async function executeTool(toolName, args) {
           if (need(['sheet','range'])) {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const rng = sheet.getRange(args.range);
-            ['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight','InsideHorizontal','InsideVertical'].forEach(s => {
-              rng.format.borders.getItem(s).style = args.style || 'Thin';
+            rng.load(['rowCount','columnCount']);
+            await context.sync();
+
+            // Map friendly style names → Excel BorderLineStyle + BorderWeight
+            const styleInput = (args.style || 'Thin').toLowerCase();
+            const lineStyle = (styleInput === 'dashed' || styleInput === 'dash') ? 'Dash'
+                            : (styleInput === 'dotted' || styleInput === 'dot')  ? 'Dot'
+                            : (styleInput === 'double')                          ? 'Double'
+                            : 'Continuous';
+            const weight    = (styleInput === 'medium') ? 'Medium'
+                            : (styleInput === 'thick')  ? 'Thick'
+                            : 'Thin';
+
+            const outerSides = ['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
+            outerSides.forEach(side => {
+              const b = rng.format.borders.getItem(side);
+              b.style = lineStyle;
+              b.weight = weight;
             });
+            // Inside borders only valid when range has more than 1 row / column
+            if (rng.rowCount > 1) {
+              const bH = rng.format.borders.getItem('InsideHorizontal');
+              bH.style = lineStyle; bH.weight = 'Thin';
+            }
+            if (rng.columnCount > 1) {
+              const bV = rng.format.borders.getItem('InsideVertical');
+              bV.style = lineStyle; bV.weight = 'Thin';
+            }
             await context.sync();
             result = `Added borders to ${args.sheet}!${args.range}`;
           }
@@ -2546,6 +2571,14 @@ RULES
 7. If data looks like a report → create a chart automatically.
 8. If task fails → try alternative approach, never give up without trying.
 9. Be precise with cell references — you are modifying the user's real data.
+10. PIVOT TABLE TECHNIQUE: Excel JS API has no native pivot. Build pivot summaries like this:
+    a) Use read_range or workbook snapshot to find all unique values in the group column
+    b) Write headers (e.g. ["Region","Total Sales"]) with write_range
+    c) Use set_formulas_range with SUMIF formulas: =SUMIF($A$2:$A$100,D2,$B$2:$B$100)
+    d) Fill actual unique values in the label column first, then add SUMIF formulas
+    e) Format the summary table professionally, then create a chart from it
+    f) NEVER use =SUMIF on an empty label cell — write label values first, formulas second
+11. CHART RULE: Only chart ranges that have actual data. Use read_range to verify values exist before charting.
 
 CURRENT WORKBOOK:
 ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
