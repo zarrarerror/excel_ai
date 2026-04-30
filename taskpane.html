@@ -603,11 +603,16 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
     <!-- Qwen config -->
     <div class="provider-config" id="cfg-qwen">
       <div class="settings-section">
-        <div class="settings-title">Qwen / Alibaba DashScope</div>
+        <div class="settings-title">Qwen / Alibaba</div>
         <div class="field">
           <label>API Key</label>
           <input type="password" id="qw-key" placeholder="sk-..."/>
-          <div class="hint">Free at dashscope.aliyun.com — qwen-turbo has generous free quota</div>
+          <div class="hint">Get from bailian.console.aliyun.com or your MaaS workspace</div>
+        </div>
+        <div class="field">
+          <label>API Host (optional)</label>
+          <input type="text" id="qw-host" placeholder="https://dashscope.aliyuncs.com"/>
+          <div class="hint">Leave empty for standard DashScope. Paste your openAiCompatible URL for MaaS endpoints (without /chat/completions)</div>
         </div>
         <div class="field">
           <label>Model</label>
@@ -778,7 +783,7 @@ let attachedFileName = null;
 const cfg = {
   provider: 'openrouter',
   or: { key: '', model: 'deepseek/deepseek-r1:free' },
-  qw: { key: '', model: 'qwen-turbo' },
+  qw: { key: '', model: 'qwen-turbo', host: '' },
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
   maxIter: 10,
   ctxRows: 100
@@ -868,6 +873,7 @@ function saveSettings() {
     : document.getElementById('or-model').value;
   cfg.qw.key   = document.getElementById('qw-key').value.trim();
   cfg.qw.model = document.getElementById('qw-model').value;
+  cfg.qw.host  = document.getElementById('qw-host').value.trim().replace(/\/$/, '');
   cfg.ol.url   = document.getElementById('ol-url').value.trim().replace(/\/$/, '');
   cfg.ol.model = document.getElementById('ol-model').value.trim();
   cfg.ol.key   = document.getElementById('ol-key').value.trim();
@@ -890,6 +896,7 @@ function loadSettings() {
     Object.assign(cfg, s);
     document.getElementById('or-key').value   = cfg.or.key || '';
     document.getElementById('qw-key').value   = cfg.qw.key || '';
+    document.getElementById('qw-host').value  = cfg.qw.host || '';
     document.getElementById('ol-url').value   = cfg.ol.url || 'http://localhost:11434';
     document.getElementById('ol-model').value = cfg.ol.model || 'llama3.2';
     document.getElementById('ol-key').value   = cfg.ol.key || '';
@@ -1477,7 +1484,8 @@ async function callQwen(messages, tools) {
     body.tool_choice = 'auto';
   }
 
-  const res = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+  const qwBaseUrl = cfg.qw.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+  const res = await fetch(qwBaseUrl + '/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1930,23 +1938,4 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
     // If assistantMsg had text alongside tools, show it
     if (assistantMsg.content && assistantMsg.content.trim()) {
-      addMessage('agent', assistantMsg.content);
-    }
-  }
-
-  if (iterations >= maxIter && !stopRequested) {
-    addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
-  }
-}
-
-// ── Auto-resize textarea on input ──
-inputEl.addEventListener('keyup', () => {
-  inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
-});
-
-</script>
-
-
-</body>
-</html>                                                                                       
+      addMessage('agent', assistantMs
