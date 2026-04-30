@@ -657,9 +657,11 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <label>Max agent loop iterations</label>
         <select id="max-iter">
           <option value="5">5 steps</option>
-          <option value="10" selected>10 steps</option>
-          <option value="20">20 steps</option>
+          <option value="10">10 steps</option>
+          <option value="20" selected>20 steps</option>
           <option value="30">30 steps</option>
+          <option value="50">50 steps</option>
+          <option value="100">100 steps</option>
         </select>
         <div class="hint">How many actions the agent can take in one run before stopping</div>
       </div>
@@ -667,9 +669,11 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <label>Context rows limit</label>
         <select id="ctx-rows">
           <option value="50">50 rows per sheet</option>
-          <option value="100" selected>100 rows per sheet</option>
+          <option value="100">100 rows per sheet</option>
           <option value="200">200 rows per sheet</option>
-          <option value="500">500 rows per sheet</option>
+          <option value="500" selected>500 rows per sheet</option>
+          <option value="1000">1000 rows per sheet</option>
+          <option value="2000">2000 rows per sheet</option>
         </select>
         <div class="hint">Limit rows sent to AI to avoid token overflow</div>
       </div>
@@ -785,8 +789,8 @@ const cfg = {
   or: { key: '', model: 'deepseek/deepseek-r1:free' },
   qw: { key: '', model: 'qwen-turbo', host: '' },
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
-  maxIter: 10,
-  ctxRows: 100
+  maxIter: 20,
+  ctxRows: 500
 };
 
 // ── Storage wrapper (localStorage blocked by tracking prevention in Office iframes) ──
@@ -900,8 +904,8 @@ function loadSettings() {
     document.getElementById('ol-url').value   = cfg.ol.url || 'http://localhost:11434';
     document.getElementById('ol-model').value = cfg.ol.model || 'llama3.2';
     document.getElementById('ol-key').value   = cfg.ol.key || '';
-    document.getElementById('max-iter').value  = cfg.maxIter || 10;
-    document.getElementById('ctx-rows').value  = cfg.ctxRows || 100;
+    document.getElementById('max-iter').value  = cfg.maxIter || 20;
+    document.getElementById('ctx-rows').value  = cfg.ctxRows || 500;
 
     // Set provider tab
     const p = cfg.provider || 'openrouter';
