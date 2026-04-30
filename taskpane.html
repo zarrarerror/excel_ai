@@ -1239,18 +1239,21 @@ async function executeTool(toolName, args) {
 
         if (toolName === 'write_range') {
           // args: { sheet, range, values: [[...],[...]] }
-          // Always derive the range from the top-left cell + values dimensions
-          // so a mismatch between the AI-provided range and the data never throws.
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const values = args.values;
-          const numRows = values.length;
-          const numCols = values[0] ? values[0].length : 1;
-          // Extract just the top-left cell from whatever range the AI provided
-          const topLeft = args.range.split(':')[0];
-          const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
-          rng.values = values;
-          await context.sync();
-          result = `Wrote ${numRows} row(s) x ${numCols} col(s) to ${args.sheet}!${topLeft}`;
+          if (!args.sheet || !args.range || !Array.isArray(args.values) || args.values.length === 0) {
+            result = 'ERROR: write_range requires sheet, range, and a non-empty values array.';
+          } else {
+            // Always derive the range from the top-left cell + values dimensions
+            // so a mismatch between the AI-provided range and the data never throws.
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const values = args.values;
+            const numRows = values.length;
+            const numCols = values[0] ? values[0].length : 1;
+            const topLeft = args.range.split(':')[0];
+            const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
+            rng.values = values;
+            await context.sync();
+            result = `Wrote ${numRows} row(s) x ${numCols} col(s) to ${args.sheet}!${topLeft}`;
+          }
         }
 
         else if (toolName === 'set_formula') {
@@ -1264,15 +1267,19 @@ async function executeTool(toolName, args) {
 
         else if (toolName === 'set_formulas_range') {
           // args: { sheet, range, formulas: [[...],[...]] }
-          const sheet = context.workbook.worksheets.getItem(args.sheet);
-          const formulas = args.formulas;
-          const numRows = formulas.length;
-          const numCols = formulas[0] ? formulas[0].length : 1;
-          const topLeft = args.range.split(':')[0];
-          const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
-          rng.formulas = formulas;
-          await context.sync();
-          result = `Set formulas in ${args.sheet}!${topLeft}`;
+          if (!args.sheet || !args.range || !Array.isArray(args.formulas) || args.formulas.length === 0) {
+            result = 'ERROR: set_formulas_range requires sheet, range, and a non-empty formulas array.';
+          } else {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const formulas = args.formulas;
+            const numRows = formulas.length;
+            const numCols = formulas[0] ? formulas[0].length : 1;
+            const topLeft = args.range.split(':')[0];
+            const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
+            rng.formulas = formulas;
+            await context.sync();
+            result = `Set formulas in ${args.sheet}!${topLeft}`;
+          }
         }
 
         else if (toolName === 'format_range') {
@@ -2008,10 +2015,13 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
       }
 
       // Add tool result to conversation
+      // Ensure id and content are always plain strings (Qwen rejects non-string values)
+      const tcId = String(tc.id || tc.function?.name || 'tool_0');
+      const tcContent = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
       messages.push({
         role: 'tool',
-        tool_call_id: tc.id,
-        content: toolResult
+        tool_call_id: tcId,
+        content: tcContent
       });
     }
 
