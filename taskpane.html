@@ -1520,6 +1520,123 @@ async function executeTool(toolName, args) {
           result = sheets.items.map(s => s.name).join(', ');
         }
 
+        else if (toolName === 'insert_rows') {
+          if (need(['sheet','rowIndex'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const count = args.count || 1;
+            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).insert(Excel.InsertShiftDirection.down);
+            await context.sync();
+            result = `Inserted ${count} row(s) at index ${args.rowIndex} in ${args.sheet}`;
+          }
+        }
+
+        else if (toolName === 'delete_rows') {
+          if (need(['sheet','rowIndex'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const count = args.count || 1;
+            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).delete(Excel.DeleteShiftDirection.up);
+            await context.sync();
+            result = `Deleted ${count} row(s) at index ${args.rowIndex} in ${args.sheet}`;
+          }
+        }
+
+        else if (toolName === 'insert_columns') {
+          if (need(['sheet','columnIndex'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const count = args.count || 1;
+            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).insert(Excel.InsertShiftDirection.right);
+            await context.sync();
+            result = `Inserted ${count} column(s) at index ${args.columnIndex} in ${args.sheet}`;
+          }
+        }
+
+        else if (toolName === 'delete_columns') {
+          if (need(['sheet','columnIndex'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const count = args.count || 1;
+            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).delete(Excel.DeleteShiftDirection.left);
+            await context.sync();
+            result = `Deleted ${count} column(s) at index ${args.columnIndex} in ${args.sheet}`;
+          }
+        }
+
+        else if (toolName === 'merge_cells') {
+          if (need(['sheet','range'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            sheet.getRange(args.range).merge(args.across || false);
+            await context.sync();
+            result = `Merged cells ${args.sheet}!${args.range}`;
+          }
+        }
+
+        else if (toolName === 'freeze_panes') {
+          if (need(['sheet'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rows = args.rows || 0;
+            const cols = args.columns || 0;
+            if (rows > 0 || cols > 0) {
+              sheet.freezePanes.freezeAt(sheet.getRangeByIndexes(rows, cols, 1, 1));
+            } else {
+              sheet.freezePanes.unfreeze();
+            }
+            await context.sync();
+            result = `Froze ${rows} row(s) and ${cols} column(s) on ${args.sheet}`;
+          }
+        }
+
+        else if (toolName === 'conditional_format') {
+          if (need(['sheet','range','type'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            const cf = rng.conditionalFormats.add(
+              args.type === 'cellValue'   ? Excel.ConditionalFormatType.cellValue :
+              args.type === 'colorScale'  ? Excel.ConditionalFormatType.colorScale :
+              args.type === 'dataBar'     ? Excel.ConditionalFormatType.dataBar :
+              args.type === 'topBottom'   ? Excel.ConditionalFormatType.topBottom :
+                                            Excel.ConditionalFormatType.presetCriteria
+            );
+            if (args.type === 'cellValue' && args.operator) {
+              const opMap = {
+                greaterThan: Excel.ConditionalCellValueOperator.greaterThan,
+                lessThan: Excel.ConditionalCellValueOperator.lessThan,
+                greaterThanOrEqualTo: Excel.ConditionalCellValueOperator.greaterThanOrEqualTo,
+                lessThanOrEqualTo: Excel.ConditionalCellValueOperator.lessThanOrEqualTo,
+                equalTo: Excel.ConditionalCellValueOperator.equalTo,
+                between: Excel.ConditionalCellValueOperator.between
+              };
+              cf.cellValue.rule = { operator: opMap[args.operator] || Excel.ConditionalCellValueOperator.greaterThan, formula1: String(args.value || 0), formula2: String(args.value2 || 0) };
+              if (args.fillColor) cf.cellValue.format.fill.color = args.fillColor;
+              if (args.fontColor) cf.cellValue.format.font.color = args.fontColor;
+            } else if (args.type === 'topBottom') {
+              const tbMap = { topItems: Excel.ConditionalTopBottomCriterionType.topItems, bottomItems: Excel.ConditionalTopBottomCriterionType.bottomItems, topPercent: Excel.ConditionalTopBottomCriterionType.topPercent, bottomPercent: Excel.ConditionalTopBottomCriterionType.bottomPercent };
+              cf.topBottom.rule = { rank: args.rank || 10, type: tbMap[args.topBottomType] || Excel.ConditionalTopBottomCriterionType.topItems };
+              if (args.fillColor) cf.topBottom.format.fill.color = args.fillColor;
+              if (args.fontColor) cf.topBottom.format.font.color = args.fontColor;
+            } else if (args.type === 'colorScale') {
+              cf.colorScale.criteria = {
+                minimum: { type: Excel.ConditionalFormatColorCriterionType.lowestValue, color: '#FF6B6B' },
+                midpoint: { type: Excel.ConditionalFormatColorCriterionType.percentile, value: 50, color: '#FFE66D' },
+                maximum: { type: Excel.ConditionalFormatColorCriterionType.highestValue, color: '#4ECDC4' }
+              };
+            }
+            await context.sync();
+            result = `Applied ${args.type} conditional format to ${args.sheet}!${args.range}`;
+          }
+        }
+
+        else if (toolName === 'find_replace') {
+          if (need(['sheet','find','replace'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const target = args.range ? sheet.getRange(args.range) : sheet.getUsedRange();
+            target.replaceAll(args.find, args.replace, {
+              matchCase: args.matchCase || false,
+              matchEntireCell: args.matchEntireCell || false
+            });
+            await context.sync();
+            result = `Replaced "${args.find}" with "${args.replace}" in ${args.sheet}`;
+          }
+        }
+
         else {
           result = `Unknown tool: ${toolName}`;
         }
@@ -2184,6 +2301,144 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'insert_rows',
+      description: 'Insert blank rows above a given row index.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          rowIndex: { type: 'number', description: '0-based row index to insert above' },
+          count: { type: 'number', description: 'Number of rows to insert (default 1)' }
+        },
+        required: ['sheet','rowIndex']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_rows',
+      description: 'Delete rows at a given row index.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          rowIndex: { type: 'number', description: '0-based row index to delete' },
+          count: { type: 'number', description: 'Number of rows to delete (default 1)' }
+        },
+        required: ['sheet','rowIndex']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'insert_columns',
+      description: 'Insert blank columns before a given column index.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          columnIndex: { type: 'number', description: '0-based column index to insert before' },
+          count: { type: 'number', description: 'Number of columns to insert (default 1)' }
+        },
+        required: ['sheet','columnIndex']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_columns',
+      description: 'Delete columns at a given column index.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          columnIndex: { type: 'number', description: '0-based column index to delete' },
+          count: { type: 'number', description: 'Number of columns to delete (default 1)' }
+        },
+        required: ['sheet','columnIndex']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'merge_cells',
+      description: 'Merge a range of cells into one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          range: { type: 'string', description: 'Range to merge e.g. A1:D1' },
+          across: { type: 'boolean', description: 'If true, merge each row separately (merge across)' }
+        },
+        required: ['sheet','range']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'freeze_panes',
+      description: 'Freeze rows and/or columns so they stay visible when scrolling.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          rows: { type: 'number', description: 'Number of rows to freeze from top (e.g. 1 to freeze header row)' },
+          columns: { type: 'number', description: 'Number of columns to freeze from left (default 0)' }
+        },
+        required: ['sheet','rows']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'conditional_format',
+      description: 'Apply conditional formatting to highlight cells based on their values.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          range: { type: 'string' },
+          type: { type: 'string', enum: ['cellValue','colorScale','dataBar','topBottom','aboveBelow'], description: 'Type of conditional format' },
+          operator: { type: 'string', enum: ['greaterThan','lessThan','greaterThanOrEqualTo','lessThanOrEqualTo','equalTo','between'], description: 'Operator for cellValue type' },
+          value: { type: 'number', description: 'Threshold value for cellValue type' },
+          value2: { type: 'number', description: 'Second value for between operator' },
+          fillColor: { type: 'string', description: 'Fill color hex for matching cells e.g. #FF0000' },
+          fontColor: { type: 'string', description: 'Font color hex for matching cells' },
+          topBottomType: { type: 'string', enum: ['topItems','bottomItems','topPercent','bottomPercent'], description: 'For topBottom type' },
+          rank: { type: 'number', description: 'Number of top/bottom items (default 10)' }
+        },
+        required: ['sheet','range','type']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'find_replace',
+      description: 'Find and replace values across a sheet or range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet: { type: 'string' },
+          find: { type: 'string', description: 'Text to search for' },
+          replace: { type: 'string', description: 'Text to replace with' },
+          range: { type: 'string', description: 'Optional: limit search to a specific range' },
+          matchCase: { type: 'boolean', description: 'Case-sensitive match (default false)' },
+          matchEntireCell: { type: 'boolean', description: 'Match entire cell content only (default false)' }
+        },
+        required: ['sheet','find','replace']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'task_complete',
       description: 'Call this when the task is fully finished. Provide a summary of what was done.',
       parameters: {
@@ -2213,35 +2468,87 @@ async function runAgent(userCommand, fileContent, fileName) {
   }
 
   // 2. Build system prompt
-  const systemPrompt = `You are an expert Excel AI Agent built by Shayntech. You can autonomously read and modify Microsoft Excel workbooks.
+  const systemPrompt = `You are an elite Excel AI Agent built by Shayntech. You are a professional data analyst and spreadsheet designer who creates beautiful, publication-quality workbooks.
 
-You have access to the following tools:
-- write_range: Write data to cells
-- set_formula / set_formulas_range: Insert Excel formulas
-- format_range: Bold, colors, font size, fill, alignment, number format
-- clear_range: Clear cell contents or formats
-- add_sheet / rename_sheet / delete_sheet / activate_sheet: Manage worksheets
-- create_chart: Create bar, column, line, pie, area, scatter charts
-- sort_range: Sort data
-- auto_fit: Auto-fit columns/rows
-- add_borders: Add cell borders
-- read_range: Read specific cell values
-- get_sheet_names: List all sheets
-- task_complete: Call this when fully done
+═══════════════════════════════════════
+AVAILABLE TOOLS
+═══════════════════════════════════════
+DATA:         write_range, read_range, find_replace
+FORMULAS:     set_formula, set_formulas_range
+FORMATTING:   format_range, add_borders, merge_cells, conditional_format
+STRUCTURE:    insert_rows, delete_rows, insert_columns, delete_columns, auto_fit, freeze_panes
+SHEETS:       add_sheet, rename_sheet, delete_sheet, activate_sheet, get_sheet_names
+CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
+OTHER:        sort_range, clear_range, task_complete
 
-RULES:
-1. Always call task_complete when done — include a clear summary of what you did.
-2. For multi-step tasks, call tools one at a time and verify before proceeding.
-3. Use exact sheet names from the workbook snapshot.
-4. Cell ranges use Excel notation: A1, B2:D10, etc.
-5. values for write_range must be a 2D array: [["row1col1","row1col2"],["row2col1","row2col2"]]
-6. For formulas use = prefix: =SUM(A1:A10)
-7. If the user attached a file, its content is provided below the workbook snapshot.
-8. If something fails, try an alternative approach.
-9. Always be precise — wrong cell references will overwrite the user's data.
+═══════════════════════════════════════
+PROFESSIONAL FORMATTING STANDARDS
+═══════════════════════════════════════
+Whenever you write data or create a report, ALWAYS apply professional formatting automatically:
 
-Current workbook state:
-${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
+HEADERS (row 1 or title rows):
+• Bold: true, fontSize: 12
+• fillColor: "#1F3864" (dark navy), color: "#FFFFFF" (white text)
+• horizontalAlignment: "Center"
+• Merge header cells if it's a title spanning multiple columns
+
+DATA ROWS (alternating is ideal):
+• Even rows fillColor: "#EBF3FB" (light blue), Odd rows: no fill
+• Font size 11, normal weight
+
+BORDERS:
+• Always add borders to data tables (style: "Thin")
+• Use "Medium" for outer border of the table
+
+COLUMNS:
+• Always call auto_fit after writing data
+
+FREEZE PANES:
+• Freeze row 1 (header) after writing a table: freeze_panes with rows=1
+
+NUMBERS & CURRENCY:
+• Currency: numberFormat "#,##0.00"
+• Percentages: numberFormat "0.00%"
+• Large numbers: numberFormat "#,##0"
+• Dates: numberFormat "DD/MM/YYYY"
+
+CHARTS (create automatically when data is suitable):
+• Time series data → line chart
+• Category comparisons → column chart
+• Part-of-whole → pie chart
+• Correlation data → scatter chart
+• Place chart at a logical position (targetCell 2 rows below data)
+• Always set a descriptive title
+
+CONDITIONAL FORMATTING (apply proactively):
+• Numeric KPI columns → colorScale to show high/low
+• Sales/revenue → highlight top 10 with green (#C6EFCE)
+• Negative values → highlight with red (#FFC7CE)
+
+COLOR PALETTE (use consistently):
+• Primary header: #1F3864 (dark navy)
+• Secondary header: #2E75B6 (medium blue)
+• Accent: #00B0F0 (light blue)
+• Positive highlight: #C6EFCE (green)
+• Negative highlight: #FFC7CE (pink/red)
+• Neutral: #FFFFCC (yellow)
+• Alternate row: #EBF3FB (very light blue)
+
+═══════════════════════════════════════
+RULES
+═══════════════════════════════════════
+1. ALWAYS call task_complete when done with a clear summary.
+2. Apply professional formatting automatically — do not wait to be asked.
+3. Use exact sheet names from the workbook snapshot below.
+4. write_range values must be 2D array: [["h1","h2"],["v1","v2"]]
+5. Formulas must start with =  e.g. =SUM(A1:A10)
+6. After writing a table: auto_fit columns, add borders, freeze header row.
+7. If data looks like a report → create a chart automatically.
+8. If task fails → try alternative approach, never give up without trying.
+9. Be precise with cell references — you are modifying the user's real data.
+
+CURRENT WORKBOOK:
+${workbookText}${fileContent ? \`\n\nATTACHED FILE: \${fileName}\n\${'─'.repeat(40)}\n\${fileContent.slice(0, 8000)}\${fileContent.length > 8000 ? '\n...[truncated]' : ''}\` : ''}`;
 
   // 3. Conversation history for this agent run
   const messages = [
