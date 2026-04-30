@@ -1802,6 +1802,8 @@ async function callOpenRouter(messages, tools) {
 async function callGemini(messages, tools) {
   if (!cfg.gm?.key) throw new Error('Gemini API key is missing. Please add it in Settings.');
 
+  messages = normalizeMessages(messages);
+
   // Convert OpenAI message format → Gemini format
   const systemParts = [];
   const geminiContents = [];
@@ -1927,6 +1929,8 @@ async function callGroq(messages, tools) {
 
 async function callClaude(messages, tools) {
   if (!cfg.cl?.key) throw new Error('Claude API key is missing. Please add it in Settings.');
+
+  messages = normalizeMessages(messages);
 
   // Separate system message from conversation
   const systemMsg = messages.find(m => m.role === 'system');
