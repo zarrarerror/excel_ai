@@ -602,6 +602,7 @@
   /* ── Template Library Modal ── */
   .tpl-overlay {
     display: none;
+    pointer-events: none;
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.7);
@@ -610,7 +611,7 @@
     justify-content: center;
     padding: 16px;
   }
-  .tpl-overlay.show { display: flex; }
+  .tpl-overlay.show { display: flex; pointer-events: all; }
   .tpl-modal {
     background: var(--bg2);
     border: 1px solid var(--border);
@@ -781,27 +782,6 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <button class="formula-insert-btn" onclick="insertFormulaToCell()">📥 Insert</button>
     </div>
 
-<!-- Template Library Modal -->
-<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
-  <div class="tpl-modal">
-    <div class="tpl-header">
-      <span class="tpl-title">📋 Template Library</span>
-      <button class="tpl-close" onclick="closeTemplates()">✕</button>
-    </div>
-    <div class="tpl-cats" id="tpl-cats">
-      <div class="tpl-cat active" data-cat="all">All</div>
-      <div class="tpl-cat" data-cat="finance">Finance</div>
-      <div class="tpl-cat" data-cat="project">Project</div>
-      <div class="tpl-cat" data-cat="sales">Sales</div>
-      <div class="tpl-cat" data-cat="hr">HR</div>
-      <div class="tpl-cat" data-cat="operations">Operations</div>
-    </div>
-    <div class="tpl-grid" id="tpl-grid"></div>
-    <div class="tpl-inserting" id="tpl-inserting">
-      <span>⚡</span> <span>Inserting template...</span>
-    </div>
-  </div>
-</div>
     <div class="input-row">
       <div class="input-btns">
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
@@ -4122,5 +4102,27 @@ Fill in the highlighted cells and the formulas will calculate automatically.`);
 }
 
 </script>
+
+<!-- Template Library Modal — direct body child to avoid WebView2 hit-area issues -->
+<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
+  <div class="tpl-modal">
+    <div class="tpl-header">
+      <span class="tpl-title">📋 Template Library</span>
+      <button class="tpl-close" onclick="closeTemplates()">✕</button>
+    </div>
+    <div class="tpl-cats" id="tpl-cats">
+      <div class="tpl-cat active" data-cat="all">All</div>
+      <div class="tpl-cat" data-cat="finance">Finance</div>
+      <div class="tpl-cat" data-cat="project">Project</div>
+      <div class="tpl-cat" data-cat="sales">Sales</div>
+      <div class="tpl-cat" data-cat="hr">HR</div>
+      <div class="tpl-cat" data-cat="operations">Operations</div>
+    </div>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <div class="tpl-inserting" id="tpl-inserting">
+      <span>⚡</span> <span>Inserting template...</span>
+    </div>
+  </div>
+</div>
 </body>
 </html>
