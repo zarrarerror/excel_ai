@@ -3589,29 +3589,23 @@ function setMode(mode) {
 }
 
 // Extract the first Excel formula from AI response text
-// Looks for content in backticks, after "Formula:", or bare =FORMULA() patterns
 function extractFormula(text) {
-  // 1. Code block: ```=FORMULA()```
-  const codeBlock = text.match(/```[^
-]*
-?(=\S[^`
-]*)/);
-  if (codeBlock) return codeBlock[1].trim();
+  var m;
+  // 1. Triple backtick code block
+  m = text.match(/```[\s\S]*?(=[^\n`]+)/);
+  if (m) return m[1].trim();
 
-  // 2. Inline backtick: `=FORMULA()`
-  const inline = text.match(/`(=[^`]+)`/);
-  if (inline) return inline[1].trim();
+  // 2. Inline backtick `=FORMULA()`
+  m = text.match(/`(=[^`]+)`/);
+  if (m) return m[1].trim();
 
   // 3. After "Formula:" label
-  const label = text.match(/(?:Formula|formula|FORMULA)\s*:\s*
-?\s*(=[^
-]+)/);
-  if (label) return label[1].trim();
+  m = text.match(/[Ff]ormula[\s]*:[\s]*(=[^\n]+)/);
+  if (m) return m[1].trim();
 
-  // 4. Bare =SOMETHING( at start of line
-  const bare = text.match(/^(=\w+\([^
-]*)/m);
-  if (bare) return bare[1].trim();
+  // 4. Bare =SOMETHING( at start of a line
+  m = text.match(/(?:^|\n)(=[A-Z]+\([^\n]*)/);
+  if (m) return m[1].trim();
 
   return '';
 }
