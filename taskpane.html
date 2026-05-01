@@ -3611,7 +3611,47 @@ function extractFormula(text) {
 }
 
 // Single-turn formula AI call — works for all 6 providers via callAI()
-async function runFormulaAssistant(userText) {
+// Read headers from active sheet to give Formula Assistant column context
+async function getSheetHeaderContext() {
+  try {
+    return await Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getActiveWorksheet();
+      sheet.load('name');
+      const usedRange = sheet.getUsedRange();
+      usedRange.load(['rowCount','columnCount']);
+      await context.sync();
+      if (!usedRange || usedRange.rowCount === 0) return null;
+      // Read first row (headers) only
+      const numCols = Math.min(usedRange.columnCount, 30);
+      const headerRow = sheet.getRange('A1').getResizedRange(0, numCols - 1);
+      headerRow.load('values');
+      await context.sync();
+      const headers = headerRow.values[0];
+      // Build column map: A=Code, B=Description, G=Qty etc.
+      const colLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const colMap = headers
+        .map((h, i) => h ? colLetters[i] + '=' + String(h).trim() : null)
+        .filter(Boolean)
+        .join(', ');
+      return { sheetName: sheet.name, colMap };
+    });
+  } catch(e) {
+    return null;
+  }
+}
+
+async function runFormulaAssistant(userText, sheetContext) {
+  let contextNote = '';
+  if (sheetContext) {
+    contextNote = `
+
+ACTIVE SHEET CONTEXT (use this to map column names to letters):
+Sheet: ${sheetContext.sheetName}
+Columns: ${sheetContext.colMap}
+
+When the user refers to a column by name (e.g. "Qty", "Price", "Date"), use the correct column letter from the map above.`;
+  }
+
   const formulaSystemPrompt = `You are an expert Microsoft Excel formula assistant.
 Your job is to:
 1. Build Excel formulas from the user's description
@@ -3627,14 +3667,13 @@ RULES:
 - If the user pastes a formula, explain each part step by step
 - If multiple formulas are possible, show the best one first
 - Use modern Excel functions where appropriate: XLOOKUP, FILTER, UNIQUE, LET, SUMPRODUCT
-- Do NOT call any tools — respond with text only`;
+- Do NOT call any tools — respond with text only${contextNote}`;
 
   const formulaMessages = [
     { role: 'system', content: formulaSystemPrompt },
     { role: 'user', content: userText }
   ];
 
-  // callAI() handles all 6 providers automatically — no tools passed = text-only response
   const response = await callAI(formulaMessages, []);
   return response ? (response.content || '') : '';
 }
@@ -3652,7 +3691,12 @@ async function handleFormulaMode(text) {
   showTyping(true);
 
   try {
-    const responseText = await runFormulaAssistant(text);
+    // Quickly read header row so AI knows column layout
+    const sheetContext = await getSheetHeaderContext();
+    if (sheetContext) {
+      addMessage('system', `📋 Reading columns from "${sheetContext.sheetName}"...`);
+    }
+    const responseText = await runFormulaAssistant(text, sheetContext);
 
     if (responseText) {
       addMessage('agent', responseText);
