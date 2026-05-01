@@ -534,6 +534,125 @@
   .notif.show { transform: translateX(-50%) translateY(0); }
   .notif.success { border-color: var(--accent); color: var(--accent); }
   .notif.fail { border-color: var(--danger); color: var(--danger); }
+
+  /* ── Template Library Modal ── */
+  .tpl-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .tpl-overlay.show { display: flex; }
+  .tpl-modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .tpl-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tpl-title {
+    font-family: var(--font-hd);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .tpl-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .tpl-close:hover { color: var(--danger); }
+  .tpl-cats {
+    display: flex;
+    gap: 5px;
+    padding: 10px 14px 8px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .tpl-cats::-webkit-scrollbar { display: none; }
+  .tpl-cat {
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    background: var(--bg3);
+  }
+  .tpl-cat.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  .tpl-cat:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  .tpl-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 6px 14px 14px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .tpl-grid::-webkit-scrollbar { width: 3px; }
+  .tpl-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .tpl-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tpl-card:hover { border-color: var(--accent); background: #0d1a15; }
+  .tpl-card-icon { font-size: 22px; flex-shrink: 0; }
+  .tpl-card-info { flex: 1; min-width: 0; }
+  .tpl-card-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .tpl-card-desc { font-size: 10.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .tpl-card-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .tpl-inserting {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    color: var(--accent);
+    font-size: 12px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+  }
+  .tpl-inserting.show { display: flex; }
 </style>
 </head>
 <body>
@@ -584,7 +703,30 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
     <div class="chat-toolbar">
       <button class="chat-tool-btn" id="export-btn" title="Export conversation">💾 Export</button>
       <button class="chat-tool-btn" id="clear-history-btn" title="Clear chat history">🗑 Clear</button>
+      <button class="chat-tool-btn" id="templates-btn" title="Insert a template" onclick="openTemplates()" style="border-color:var(--accent);color:var(--accent);">📋 Templates</button>
     </div>
+
+<!-- Template Library Modal -->
+<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
+  <div class="tpl-modal">
+    <div class="tpl-header">
+      <span class="tpl-title">📋 Template Library</span>
+      <button class="tpl-close" onclick="closeTemplates()">✕</button>
+    </div>
+    <div class="tpl-cats" id="tpl-cats">
+      <div class="tpl-cat active" data-cat="all">All</div>
+      <div class="tpl-cat" data-cat="finance">Finance</div>
+      <div class="tpl-cat" data-cat="project">Project</div>
+      <div class="tpl-cat" data-cat="sales">Sales</div>
+      <div class="tpl-cat" data-cat="hr">HR</div>
+      <div class="tpl-cat" data-cat="operations">Operations</div>
+    </div>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <div class="tpl-inserting" id="tpl-inserting">
+      <span>⚡</span> <span>Inserting template...</span>
+    </div>
+  </div>
+</div>
     <div class="input-row">
       <div class="input-btns">
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
@@ -3324,6 +3466,406 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
   if (iterations >= maxIter && !stopRequested) {
     addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TEMPLATE LIBRARY
+// ═══════════════════════════════════════════════════════════
+
+const TEMPLATES = [
+  {
+    id: 'invoice',
+    name: 'Professional Invoice',
+    icon: '🧾',
+    desc: 'Client invoice with line items, tax, and totals',
+    cat: 'finance',
+    tag: 'Finance',
+    sheetName: 'Invoice',
+    data: [
+      ['INVOICE', '', '', ''],
+      ['', '', '', ''],
+      ['Bill To:', '', 'Invoice #:', '1001'],
+      ['Client Name', '', 'Date:', new Date().toLocaleDateString()],
+      ['Client Address', '', 'Due Date:', ''],
+      ['Client City, State', '', '', ''],
+      ['', '', '', ''],
+      ['Description', 'Qty', 'Unit Price', 'Amount'],
+      ['Service / Product 1', 1, 0, '=C9*B9'],
+      ['Service / Product 2', 1, 0, '=C10*B10'],
+      ['Service / Product 3', 1, 0, '=C11*B11'],
+      ['', '', '', ''],
+      ['', '', 'Subtotal', '=SUM(D9:D11)'],
+      ['', '', 'Tax (10%)', '=D13*0.1'],
+      ['', '', 'TOTAL', '=D13+D14'],
+      ['', '', '', ''],
+      ['Notes:', '', '', ''],
+      ['Thank you for your business!', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 18, color: '#00e5a0' },
+      { range: 'A8:D8', bold: true, fill: '#1c2030' },
+      { range: 'A13:D15', bold: true },
+      { range: 'D15', bold: true, color: '#00e5a0' },
+      { range: 'B9:B11', numberFormat: '0' },
+      { range: 'C9:D15', numberFormat: '"$"#,##0.00' },
+    ]
+  },
+  {
+    id: 'budget',
+    name: 'Monthly Budget Tracker',
+    icon: '💰',
+    desc: 'Income vs expenses tracker with balance summary',
+    cat: 'finance',
+    tag: 'Finance',
+    sheetName: 'Budget',
+    data: [
+      ['MONTHLY BUDGET TRACKER', '', '', ''],
+      ['Month:', new Date().toLocaleString('default',{month:'long'}), '', ''],
+      ['', '', '', ''],
+      ['INCOME', '', '', ''],
+      ['Source', 'Budgeted', 'Actual', 'Difference'],
+      ['Salary', 0, 0, '=C6-B6'],
+      ['Freelance', 0, 0, '=C7-B7'],
+      ['Other Income', 0, 0, '=C8-B8'],
+      ['Total Income', '=SUM(B6:B8)', '=SUM(C6:C8)', '=SUM(D6:D8)'],
+      ['', '', '', ''],
+      ['EXPENSES', '', '', ''],
+      ['Category', 'Budgeted', 'Actual', 'Difference'],
+      ['Rent / Mortgage', 0, 0, '=C13-B13'],
+      ['Utilities', 0, 0, '=C14-B14'],
+      ['Groceries', 0, 0, '=C15-B15'],
+      ['Transport', 0, 0, '=C16-B16'],
+      ['Entertainment', 0, 0, '=C17-B17'],
+      ['Other', 0, 0, '=C18-B18'],
+      ['Total Expenses', '=SUM(B13:B18)', '=SUM(C13:C18)', '=SUM(D13:D18)'],
+      ['', '', '', ''],
+      ['NET BALANCE', '=B9-B19', '=C9-C19', '=D9-D19'],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4', bold: true, color: '#0099ff' },
+      { range: 'A5:D5', bold: true, fill: '#1c2030' },
+      { range: 'A9:D9', bold: true },
+      { range: 'A11', bold: true, color: '#0099ff' },
+      { range: 'A12:D12', bold: true, fill: '#1c2030' },
+      { range: 'A19:D19', bold: true },
+      { range: 'A21:D21', bold: true, color: '#00e5a0' },
+      { range: 'B6:D21', numberFormat: '"$"#,##0.00' },
+    ]
+  },
+  {
+    id: 'project',
+    name: 'Project Timeline (Gantt)',
+    icon: '📅',
+    desc: 'Task list with start/end dates and status tracking',
+    cat: 'project',
+    tag: 'Project',
+    sheetName: 'Project Plan',
+    data: [
+      ['PROJECT TIMELINE', '', '', '', '', ''],
+      ['Project Name:', 'My Project', '', 'Start Date:', new Date().toLocaleDateString(), ''],
+      ['', '', '', '', '', ''],
+      ['Task', 'Owner', 'Start Date', 'End Date', 'Duration (days)', 'Status'],
+      ['Project Kickoff', 'Team Lead', '', '', '', 'Not Started'],
+      ['Requirements Gathering', 'Analyst', '', '', '', 'Not Started'],
+      ['Design Phase', 'Designer', '', '', '', 'Not Started'],
+      ['Development Sprint 1', 'Developer', '', '', '', 'Not Started'],
+      ['Development Sprint 2', 'Developer', '', '', '', 'Not Started'],
+      ['Testing & QA', 'QA Engineer', '', '', '', 'Not Started'],
+      ['Client Review', 'Team Lead', '', '', '', 'Not Started'],
+      ['Final Delivery', 'Team Lead', '', '', '', 'Not Started'],
+      ['', '', '', '', '', ''],
+      ['STATUS SUMMARY', '', '', '', '', ''],
+      ['Not Started', '=COUNTIF(F5:F12,"Not Started")', '', '', '', ''],
+      ['In Progress', '=COUNTIF(F5:F12,"In Progress")', '', '', '', ''],
+      ['Completed', '=COUNTIF(F5:F12,"Completed")', '', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:F4', bold: true, fill: '#1c2030' },
+      { range: 'A14', bold: true, color: '#0099ff' },
+      { range: 'A15:A17', bold: true },
+    ]
+  },
+  {
+    id: 'sales',
+    name: 'Sales Report',
+    icon: '📈',
+    desc: 'Monthly sales data with rep performance and totals',
+    cat: 'sales',
+    tag: 'Sales',
+    sheetName: 'Sales Report',
+    data: [
+      ['SALES REPORT', '', '', '', ''],
+      ['Period:', new Date().toLocaleString('default',{month:'long',year:'numeric'}), '', '', ''],
+      ['', '', '', '', ''],
+      ['Sales Rep', 'Region', 'Target', 'Actual', 'Achievement %'],
+      ['Alice Johnson', 'North', 50000, 0, '=IF(C5=0,0,D5/C5)'],
+      ['Bob Smith', 'South', 45000, 0, '=IF(C6=0,0,D6/C6)'],
+      ['Carol White', 'East', 55000, 0, '=IF(C7=0,0,D7/C7)'],
+      ['David Brown', 'West', 48000, 0, '=IF(C8=0,0,D8/C8)'],
+      ['Emma Davis', 'Central', 52000, 0, '=IF(C9=0,0,D9/C9)'],
+      ['', '', '', '', ''],
+      ['TOTALS', '', '=SUM(C5:C9)', '=SUM(D5:D9)', '=IF(C11=0,0,D11/C11)'],
+      ['', '', '', '', ''],
+      ['TOP PERFORMER', '=INDEX(A5:A9,MATCH(MAX(D5:D9),D5:D9,0))', '', '', ''],
+      ['HIGHEST ACHIEVEMENT', '=MAX(E5:E9)', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:E4', bold: true, fill: '#1c2030' },
+      { range: 'A11:E11', bold: true },
+      { range: 'A13:A14', bold: true, color: '#0099ff' },
+      { range: 'C5:D11', numberFormat: '"$"#,##0' },
+      { range: 'E5:E11', numberFormat: '0.0%' },
+      { range: 'B14', numberFormat: '0.0%' },
+    ]
+  },
+  {
+    id: 'expense',
+    name: 'Expense Tracker',
+    icon: '🧳',
+    desc: 'Log business expenses by category with running totals',
+    cat: 'finance',
+    tag: 'Finance',
+    sheetName: 'Expenses',
+    data: [
+      ['EXPENSE TRACKER', '', '', '', ''],
+      ['Name:', '', 'Month:', new Date().toLocaleString('default',{month:'long'}), ''],
+      ['', '', '', '', ''],
+      ['Date', 'Description', 'Category', 'Amount', 'Receipt?'],
+      ['', '', 'Meals', 0, 'No'],
+      ['', '', 'Travel', 0, 'No'],
+      ['', '', 'Accommodation', 0, 'No'],
+      ['', '', 'Office Supplies', 0, 'No'],
+      ['', '', 'Software / Tools', 0, 'No'],
+      ['', '', 'Other', 0, 'No'],
+      ['', '', '', '', ''],
+      ['', '', 'TOTAL', '=SUM(D5:D10)', ''],
+      ['', '', '', '', ''],
+      ['BY CATEGORY', '', '', '', ''],
+      ['Meals', '=SUMIF(C5:C10,"Meals",D5:D10)', '', '', ''],
+      ['Travel', '=SUMIF(C5:C10,"Travel",D5:D10)', '', '', ''],
+      ['Accommodation', '=SUMIF(C5:C10,"Accommodation",D5:D10)', '', '', ''],
+      ['Office Supplies', '=SUMIF(C5:C10,"Office Supplies",D5:D10)', '', '', ''],
+      ['Software / Tools', '=SUMIF(C5:C10,"Software / Tools",D5:D10)', '', '', ''],
+      ['Other', '=SUMIF(C5:C10,"Other",D5:D10)', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:E4', bold: true, fill: '#1c2030' },
+      { range: 'C12:D12', bold: true },
+      { range: 'A14', bold: true, color: '#0099ff' },
+      { range: 'D5:D12', numberFormat: '"$"#,##0.00' },
+      { range: 'B15:B20', numberFormat: '"$"#,##0.00' },
+    ]
+  },
+  {
+    id: 'kpi',
+    name: 'KPI Dashboard',
+    icon: '🎯',
+    desc: 'Key metrics dashboard with targets and trend indicators',
+    cat: 'operations',
+    tag: 'Operations',
+    sheetName: 'KPI Dashboard',
+    data: [
+      ['KPI DASHBOARD', '', '', '', ''],
+      ['Department:', 'Operations', 'Period:', new Date().toLocaleString('default',{month:'long',year:'numeric'}), ''],
+      ['', '', '', '', ''],
+      ['KPI', 'Target', 'Actual', 'Status', 'Notes'],
+      ['Revenue', 100000, 0, '=IF(C5>=B5,"✅ On Track","⚠️ Below Target")', ''],
+      ['New Customers', 50, 0, '=IF(C6>=B6,"✅ On Track","⚠️ Below Target")', ''],
+      ['Customer Satisfaction (%)', 90, 0, '=IF(C7>=B7,"✅ On Track","⚠️ Below Target")', ''],
+      ['Support Tickets Resolved (%)', 95, 0, '=IF(C8>=B8,"✅ On Track","⚠️ Below Target")', ''],
+      ['Employee Utilization (%)', 80, 0, '=IF(C9>=B9,"✅ On Track","⚠️ Below Target")', ''],
+      ['Cost per Unit', 25, 0, '=IF(C10<=B10,"✅ On Track","⚠️ Above Target")', ''],
+      ['', '', '', '', ''],
+      ['SUMMARY', '', '', '', ''],
+      ['On Track', '=COUNTIF(D5:D10,"✅ On Track")', '', '', ''],
+      ['Below Target', '=COUNTIF(D5:D10,"⚠️*")', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:E4', bold: true, fill: '#1c2030' },
+      { range: 'A12', bold: true, color: '#0099ff' },
+      { range: 'A13:A14', bold: true },
+      { range: 'B5:C10', numberFormat: '#,##0' },
+    ]
+  },
+  {
+    id: 'hr',
+    name: 'Employee Leave Tracker',
+    icon: '👥',
+    desc: 'Track annual leave, sick days and remaining balances per employee',
+    cat: 'hr',
+    tag: 'HR',
+    sheetName: 'Leave Tracker',
+    data: [
+      ['EMPLOYEE LEAVE TRACKER', '', '', '', '', ''],
+      ['Year:', new Date().getFullYear(), '', '', '', ''],
+      ['', '', '', '', '', ''],
+      ['Employee', 'Department', 'Annual Leave Allowance', 'Annual Used', 'Sick Days Used', 'Remaining Leave'],
+      ['', '', 21, 0, 0, '=C5-D5'],
+      ['', '', 21, 0, 0, '=C6-D6'],
+      ['', '', 21, 0, 0, '=C7-D7'],
+      ['', '', 21, 0, 0, '=C8-D8'],
+      ['', '', 21, 0, 0, '=C9-D9'],
+      ['', '', 21, 0, 0, '=C10-D10'],
+      ['', '', '', '', '', ''],
+      ['TOTALS', '', '=SUM(C5:C10)', '=SUM(D5:D10)', '=SUM(E5:E10)', '=SUM(F5:F10)'],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:F4', bold: true, fill: '#1c2030' },
+      { range: 'A12:F12', bold: true },
+    ]
+  },
+  {
+    id: 'inventory',
+    name: 'Inventory Manager',
+    icon: '📦',
+    desc: 'Product stock levels with reorder alerts and valuation',
+    cat: 'operations',
+    tag: 'Operations',
+    sheetName: 'Inventory',
+    data: [
+      ['INVENTORY MANAGER', '', '', '', '', ''],
+      ['Last Updated:', new Date().toLocaleDateString(), '', '', '', ''],
+      ['', '', '', '', '', ''],
+      ['Product Name', 'SKU', 'Category', 'Stock Qty', 'Reorder Level', 'Unit Cost', 'Total Value', 'Status'],
+      ['', '', '', 0, 10, 0, '=D5*F5', '=IF(D5<=E5,"🔴 Reorder","✅ OK")'],
+      ['', '', '', 0, 10, 0, '=D6*F6', '=IF(D6<=E6,"🔴 Reorder","✅ OK")'],
+      ['', '', '', 0, 10, 0, '=D7*F7', '=IF(D7<=E7,"🔴 Reorder","✅ OK")'],
+      ['', '', '', 0, 10, 0, '=D8*F8', '=IF(D8<=E8,"🔴 Reorder","✅ OK")'],
+      ['', '', '', 0, 10, 0, '=D9*F9', '=IF(D9<=E9,"🔴 Reorder","✅ OK")'],
+      ['', '', '', 0, 10, 0, '=D10*F10', '=IF(D10<=E10,"🔴 Reorder","✅ OK")'],
+      ['', '', '', '', '', '', '', ''],
+      ['TOTALS', '', '', '=SUM(D5:D10)', '', '', '=SUM(G5:G10)', ''],
+      ['', '', '', '', '', '', '', ''],
+      ['Items Needing Reorder', '=COUNTIF(H5:H10,"🔴 Reorder")', '', '', '', '', '', ''],
+    ],
+    formats: [
+      { range: 'A1', bold: true, fontSize: 14, color: '#00e5a0' },
+      { range: 'A4:H4', bold: true, fill: '#1c2030' },
+      { range: 'A12:H12', bold: true },
+      { range: 'A14', bold: true, color: '#ff4d6d' },
+      { range: 'F5:G12', numberFormat: '"$"#,##0.00' },
+    ]
+  }
+];
+
+let tplCurrentCat = 'all';
+
+function openTemplates() {
+  document.getElementById('tpl-overlay').classList.add('show');
+  renderTemplateGrid(tplCurrentCat);
+}
+
+function closeTemplates() {
+  document.getElementById('tpl-overlay').classList.remove('show');
+}
+
+function renderTemplateGrid(cat) {
+  const grid = document.getElementById('tpl-grid');
+  const filtered = cat === 'all' ? TEMPLATES : TEMPLATES.filter(t => t.cat === cat);
+  grid.innerHTML = filtered.map(t => `
+    <div class="tpl-card" onclick="insertTemplate('${t.id}')">
+      <div class="tpl-card-icon">${t.icon}</div>
+      <div class="tpl-card-info">
+        <div class="tpl-card-name">${t.name}</div>
+        <div class="tpl-card-desc">${t.desc}</div>
+      </div>
+      <div class="tpl-card-tag">${t.tag}</div>
+    </div>
+  `).join('');
+}
+
+// Wire up category filter buttons
+document.getElementById('tpl-cats').addEventListener('click', function(e) {
+  const btn = e.target.closest('.tpl-cat');
+  if (!btn) return;
+  document.querySelectorAll('.tpl-cat').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  tplCurrentCat = btn.dataset.cat;
+  renderTemplateGrid(tplCurrentCat);
+});
+
+async function insertTemplate(id) {
+  const tpl = TEMPLATES.find(t => t.id === id);
+  if (!tpl) return;
+
+  const inserting = document.getElementById('tpl-inserting');
+  inserting.classList.add('show');
+  document.querySelectorAll('.tpl-card').forEach(c => c.style.pointerEvents = 'none');
+
+  try {
+    await Excel.run(async (context) => {
+      // Add a new sheet with the template name (avoid duplicates)
+      let sheetName = tpl.sheetName;
+      const sheets = context.workbook.worksheets;
+      sheets.load('items/name');
+      await context.sync();
+      const existing = sheets.items.map(s => s.name);
+      let counter = 1;
+      while (existing.includes(sheetName)) {
+        sheetName = tpl.sheetName + ' ' + counter++;
+      }
+
+      const sheet = sheets.add(sheetName);
+      sheet.activate();
+
+      // Write data
+      const numRows = tpl.data.length;
+      const numCols = tpl.data.reduce((m, r) => Math.max(m, r.length), 0);
+      // Pad jagged rows
+      const paddedData = tpl.data.map(r => {
+        const row = r.map(cell => (cell === null || cell === undefined) ? '' : cell);
+        while (row.length < numCols) row.push('');
+        return row;
+      });
+
+      const dataRange = sheet.getRange('A1').getResizedRange(numRows - 1, numCols - 1);
+      dataRange.values = paddedData;
+
+      // Apply basic formatting
+      // Column widths
+      sheet.getRange('A:A').columnWidth = 160;
+      sheet.getRange('B:B').columnWidth = 110;
+      sheet.getRange('C:C').columnWidth = 110;
+      sheet.getRange('D:D').columnWidth = 100;
+      if (numCols > 4) sheet.getRange('E:E').columnWidth = 100;
+      if (numCols > 5) sheet.getRange('F:F').columnWidth = 100;
+      if (numCols > 6) sheet.getRange('G:G').columnWidth = 100;
+      if (numCols > 7) sheet.getRange('H:H').columnWidth = 80;
+
+      // Apply per-cell format overrides
+      for (const fmt of (tpl.formats || [])) {
+        const r = sheet.getRange(fmt.range);
+        if (fmt.bold !== undefined) r.format.font.bold = fmt.bold;
+        if (fmt.fontSize) r.format.font.size = fmt.fontSize;
+        if (fmt.color) r.format.font.color = fmt.color;
+        if (fmt.fill) r.format.fill.color = fmt.fill;
+        if (fmt.numberFormat) r.numberFormat = fmt.numberFormat;
+      }
+
+      // Auto-fit rows
+      sheet.getUsedRange().format.autofitRows();
+
+      await context.sync();
+    });
+
+    closeTemplates();
+    showNotif(`✅ "${tpl.name}" inserted as new sheet!`, 'success');
+    addMessage('system', `📋 Template inserted: **${tpl.name}** → Sheet "${tpl.sheetName}"
+
+Fill in the highlighted cells and the formulas will calculate automatically.`);
+
+  } catch(e) {
+    showNotif('❌ Insert failed: ' + e.message, 'fail');
+  } finally {
+    inserting.classList.remove('show');
+    document.querySelectorAll('.tpl-card').forEach(c => c.style.pointerEvents = '');
   }
 }
 
