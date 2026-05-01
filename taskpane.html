@@ -535,6 +535,70 @@
   .notif.success { border-color: var(--accent); color: var(--accent); }
   .notif.fail { border-color: var(--danger); color: var(--danger); }
 
+  /* ── Formula Assistant Mode ── */
+  .mode-toggle {
+    display: flex;
+    gap: 3px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: none;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+  }
+  .mode-btn.active {
+    background: var(--accent);
+    color: #000;
+  }
+  .mode-btn:not(.active):hover { color: var(--text); }
+
+  .formula-bar {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    background: #0d1a14;
+    border: 1px solid #1a3a28;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .formula-bar.show { display: flex; }
+  .formula-bar-label { color: var(--muted); flex-shrink: 0; }
+  .formula-bar-value {
+    flex: 1;
+    font-family: 'Courier New', monospace;
+    color: var(--accent);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .formula-insert-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .formula-insert-btn:hover { background: #00ffb3; }
+
   /* ── Template Library Modal ── */
   .tpl-overlay {
     display: none;
@@ -700,10 +764,21 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <span class="file-name" id="attached-file-name"></span>
       <button class="remove-file" id="remove-file-btn">✕</button>
     </div>
-    <div class="chat-toolbar">
-      <button class="chat-tool-btn" id="export-btn" title="Export conversation">💾 Export</button>
-      <button class="chat-tool-btn" id="clear-history-btn" title="Clear chat history">🗑 Clear</button>
-      <button class="chat-tool-btn" id="templates-btn" title="Insert a template" onclick="openTemplates()" style="border-color:var(--accent);color:var(--accent);">📋 Templates</button>
+    <div class="chat-toolbar" style="justify-content:space-between;align-items:center;">
+      <div style="display:flex;gap:6px;">
+        <button class="chat-tool-btn" id="export-btn" title="Export conversation">💾 Export</button>
+        <button class="chat-tool-btn" id="clear-history-btn" title="Clear chat history">🗑 Clear</button>
+        <button class="chat-tool-btn" id="templates-btn" title="Insert a template" onclick="openTemplates()" style="border-color:var(--accent);color:var(--accent);">📋 Templates</button>
+      </div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-agent" onclick="setMode('agent')">🤖 Agent</button>
+        <button class="mode-btn" id="mode-formula" onclick="setMode('formula')">𝑓 Formula</button>
+      </div>
+    </div>
+    <div class="formula-bar" id="formula-bar">
+      <span class="formula-bar-label">𝑓x</span>
+      <span class="formula-bar-value" id="formula-bar-value">—</span>
+      <button class="formula-insert-btn" onclick="insertFormulaToCell()">📥 Insert</button>
     </div>
 
 <!-- Template Library Modal -->
@@ -1477,6 +1552,12 @@ async function handleSend() {
   attachedFileName = null;
   filePreview.classList.remove('show');
 
+  // Route to Formula Assistant or Agent based on mode
+  if (currentMode === 'formula') {
+    await handleFormulaMode(text);
+    return;
+  }
+
   agentRunning = true;
   stopRequested = false;
   sendBtn.style.display = 'none';
@@ -1980,6 +2061,20 @@ async function executeTool(toolName, args) {
             }
             await context.sync();
             result = `Applied ${args.type} conditional format to ${args.sheet}!${args.range}`;
+          }
+        }
+
+        else if (toolName === 'formula_conditional_format') {
+          if (need(['sheet','range','formula'])) {
+            const sheet = context.workbook.worksheets.getItem(args.sheet);
+            const rng = sheet.getRange(args.range);
+            const cf = rng.conditionalFormats.add(Excel.ConditionalFormatType.custom);
+            cf.custom.rule.formula = args.formula;
+            if (args.fillColor) cf.custom.format.fill.color = args.fillColor;
+            if (args.fontColor) cf.custom.format.font.color = args.fontColor;
+            if (args.bold !== undefined) cf.custom.format.font.bold = args.bold;
+            await context.sync();
+            result = `Applied formula conditional format "${args.formula}" to ${args.sheet}!${args.range}`;
           }
         }
 
@@ -3012,6 +3107,25 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'formula_conditional_format',
+      description: 'Apply formula-based conditional formatting — use when the condition compares two columns (e.g. Stock < Reorder Level = =$C2<$D2), or any rule that requires a custom Excel formula. The formula must start with = and use absolute column + relative row references like =$C2<$D2.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sheet:      { type: 'string', description: 'Worksheet name' },
+          range:      { type: 'string', description: 'Range to apply formatting to e.g. A2:E100' },
+          formula:    { type: 'string', description: 'Excel formula starting with = e.g. =$C2<$D2' },
+          fillColor:  { type: 'string', description: 'Background color hex e.g. #FFC7CE' },
+          fontColor:  { type: 'string', description: 'Font color hex e.g. #9C0006' },
+          bold:       { type: 'boolean', description: 'Make font bold' }
+        },
+        required: ['sheet','range','formula']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'conditional_format',
       description: 'Apply conditional formatting to highlight cells based on their values.',
       parameters: {
@@ -3243,7 +3357,7 @@ AVAILABLE TOOLS
 ═══════════════════════════════════════
 DATA:         write_range, read_range, find_replace
 FORMULAS:     set_formula, set_formulas_range
-FORMATTING:   format_range, add_borders, merge_cells, conditional_format
+FORMATTING:   format_range, add_borders, merge_cells, conditional_format, formula_conditional_format
 STRUCTURE:    insert_rows, delete_rows, insert_columns, delete_columns, auto_fit, freeze_panes
 SHEETS:       add_sheet, rename_sheet, delete_sheet, activate_sheet, get_sheet_names
 CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
@@ -3466,6 +3580,144 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
 
   if (iterations >= maxIter && !stopRequested) {
     addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FORMULA ASSISTANT MODE
+// ═══════════════════════════════════════════════════════════
+
+let currentMode = 'agent';          // 'agent' | 'formula'
+let lastExtractedFormula = '';      // formula shown in the bar
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-agent').classList.toggle('active', mode === 'agent');
+  document.getElementById('mode-formula').classList.toggle('active', mode === 'formula');
+
+  const input = document.getElementById('user-input');
+  if (mode === 'formula') {
+    input.placeholder = 'Describe what you want to calculate, or paste a formula to explain...';
+    // Clear formula bar on mode switch
+    document.getElementById('formula-bar').classList.remove('show');
+    document.getElementById('formula-bar-value').textContent = '—';
+    lastExtractedFormula = '';
+  } else {
+    input.placeholder = 'Ask the agent to do something in Excel...';
+    document.getElementById('formula-bar').classList.remove('show');
+  }
+}
+
+// Extract the first Excel formula from AI response text
+// Looks for content in backticks, after "Formula:", or bare =FORMULA() patterns
+function extractFormula(text) {
+  // 1. Code block: ```=FORMULA()```
+  const codeBlock = text.match(/```[^
+]*
+?(=\S[^`
+]*)/);
+  if (codeBlock) return codeBlock[1].trim();
+
+  // 2. Inline backtick: `=FORMULA()`
+  const inline = text.match(/`(=[^`]+)`/);
+  if (inline) return inline[1].trim();
+
+  // 3. After "Formula:" label
+  const label = text.match(/(?:Formula|formula|FORMULA)\s*:\s*
+?\s*(=[^
+]+)/);
+  if (label) return label[1].trim();
+
+  // 4. Bare =SOMETHING( at start of line
+  const bare = text.match(/^(=\w+\([^
+]*)/m);
+  if (bare) return bare[1].trim();
+
+  return '';
+}
+
+// Single-turn formula AI call — works for all 6 providers via callAI()
+async function runFormulaAssistant(userText) {
+  const formulaSystemPrompt = `You are an expert Microsoft Excel formula assistant.
+Your job is to:
+1. Build Excel formulas from the user's description
+2. Explain what an existing formula does
+3. Fix broken formulas
+
+RULES:
+- ALWAYS show the formula in a code block using triple backticks, e.g.:
+\`\`\`
+=SUMIF(A:A,"Product",B:B)
+\`\`\`
+- After the formula, explain it clearly in plain English (2-4 sentences max)
+- If the user pastes a formula, explain each part step by step
+- If multiple formulas are possible, show the best one first
+- Use modern Excel functions where appropriate: XLOOKUP, FILTER, UNIQUE, LET, SUMPRODUCT
+- Do NOT call any tools — respond with text only`;
+
+  const formulaMessages = [
+    { role: 'system', content: formulaSystemPrompt },
+    { role: 'user', content: userText }
+  ];
+
+  // callAI() handles all 6 providers automatically — no tools passed = text-only response
+  const response = await callAI(formulaMessages, []);
+  return response ? (response.content || '') : '';
+}
+
+async function handleFormulaMode(text) {
+  if (!hasValidConfig()) {
+    addMessage('error', '⚠️ Please configure your AI provider in Settings first.');
+    return;
+  }
+
+  agentRunning = true;
+  sendBtn.style.display = 'none';
+  stopBtn.style.display = 'flex';
+  setStatus('busy');
+  showTyping(true);
+
+  try {
+    const responseText = await runFormulaAssistant(text);
+
+    if (responseText) {
+      addMessage('agent', responseText);
+
+      // Extract and show formula in the insert bar
+      const formula = extractFormula(responseText);
+      if (formula) {
+        lastExtractedFormula = formula;
+        document.getElementById('formula-bar-value').textContent = formula;
+        document.getElementById('formula-bar').classList.add('show');
+      } else {
+        document.getElementById('formula-bar').classList.remove('show');
+      }
+    } else {
+      addMessage('error', '❌ No response from AI. Check your API key in Settings.');
+    }
+  } catch(e) {
+    addMessage('error', '❌ Formula Assistant error: ' + e.message);
+  }
+
+  showTyping(false);
+  agentRunning = false;
+  sendBtn.style.display = 'flex';
+  stopBtn.style.display = 'none';
+  setStatus('ready');
+}
+
+async function insertFormulaToCell() {
+  if (!lastExtractedFormula) return;
+  try {
+    await Excel.run(async (context) => {
+      const cell = context.workbook.getActiveCell();
+      cell.formulas = [[lastExtractedFormula]];
+      await context.sync();
+    });
+    showNotif('✅ Formula inserted into selected cell!', 'success');
+    addMessage('system', `📥 Inserted into active cell: \`${lastExtractedFormula}\``);
+  } catch(e) {
+    showNotif('❌ Insert failed: ' + e.message, 'fail');
   }
 }
 
