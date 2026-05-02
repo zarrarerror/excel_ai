@@ -3624,9 +3624,7 @@ function buildErrorHint(toolName, toolArgs, errMsg) {
   }
 
   const base = 'ERROR: ' + errMsg;
-  return hint ? base + '
-' + hint + '
-Do NOT repeat the same call. Try the suggested approach instead.' : base;
+  return hint ? base + '\n' + hint + '\nDo NOT repeat the same call. Try the suggested approach instead.' : base;
 }
 
 // ═══════════════════════════════════════════════════════════
