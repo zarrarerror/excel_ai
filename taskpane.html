@@ -514,6 +514,46 @@
     margin: 2px 0;
   }
 
+  /* ── Theme Selector ── */
+  .theme-grid {
+    display: flex;
+    gap: 8px;
+  }
+  .theme-card {
+    flex: 1;
+    border-radius: 10px;
+    border: 2px solid var(--border);
+    padding: 10px 8px 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+  }
+  .theme-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .theme-card.active { border-color: var(--accent); }
+  .theme-swatch {
+    width: 100%;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    gap: 3px;
+    overflow: hidden;
+  }
+  .theme-swatch span {
+    flex: 1;
+    border-radius: 3px;
+  }
+  .theme-card-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .theme-card.active .theme-card-name { color: var(--accent); }
+
   /* Notification */
   .notif {
     position: fixed;
@@ -992,6 +1032,40 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <div class="hint">Agent shows its plan and waits for your ✅ before running any tools</div>
     </div>
 
+    <div class="settings-section">
+      <div class="settings-title">🎨 Theme</div>
+      <div class="theme-grid" id="theme-grid">
+
+        <div class="theme-card active" id="theme-dark" onclick="applyTheme('dark')">
+          <div class="theme-swatch">
+            <span style="background:#0d0f14"></span>
+            <span style="background:#1c2030"></span>
+            <span style="background:#00e5a0"></span>
+          </div>
+          <div class="theme-card-name">Dark</div>
+        </div>
+
+        <div class="theme-card" id="theme-light" onclick="applyTheme('light')">
+          <div class="theme-swatch">
+            <span style="background:#f0f2f8"></span>
+            <span style="background:#ffffff"></span>
+            <span style="background:#6366f1"></span>
+          </div>
+          <div class="theme-card-name">Light</div>
+        </div>
+
+        <div class="theme-card" id="theme-midnight" onclick="applyTheme('midnight')">
+          <div class="theme-swatch">
+            <span style="background:#070b14"></span>
+            <span style="background:#0f1628"></span>
+            <span style="background:#7c3aed"></span>
+          </div>
+          <div class="theme-card-name">Midnight</div>
+        </div>
+
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="save-btn" id="save-settings-btn">💾 Save Settings</button>
       <button class="test-btn" id="test-conn-btn">🔌 Test Connection</button>
@@ -1143,6 +1217,7 @@ function _onBothReady() {
   }
   setStatus('ready');
   loadSettings();
+  loadSavedTheme();
 }
 
 // NOTE: _domReady = true and timeout fallback are set at the bottom of the script
@@ -2055,6 +2130,53 @@ async function executeTool(toolName, args) {
             if (args.bold !== undefined) cf.custom.format.font.bold = args.bold;
             await context.sync();
             result = `Applied formula conditional format "${args.formula}" to ${args.sheet}!${args.range}`;
+          }
+        }
+
+        else if (toolName === 'apply_to_all_sheets') {
+          if (need(['operation'])) {
+            const op = args.operation;
+            const exclude = Array.isArray(args.exclude_sheets) ? args.exclude_sheets : [];
+            const sheets = context.workbook.worksheets;
+            sheets.load('items/name');
+            await context.sync();
+            const targets = sheets.items.filter(function(s) { return !exclude.includes(s.name); });
+            var processed = [];
+            for (var si = 0; si < targets.length; si++) {
+              var sh = targets[si];
+              var usedRng = sh.getUsedRange();
+              usedRng.load(['rowCount','columnCount']);
+              await context.sync();
+              if (!usedRng || usedRng.rowCount === 0) continue;
+              if (op === 'auto_fit') {
+                usedRng.format.autofitColumns();
+                usedRng.format.autofitRows();
+              } else if (op === 'freeze_header') {
+                sh.freezePanes.freezeRows(1);
+              } else if (op === 'format_header') {
+                var hdr = sh.getRange('A1').getResizedRange(0, usedRng.columnCount - 1);
+                hdr.format.font.bold = true;
+                if (args.fillColor) hdr.format.fill.color = args.fillColor;
+                if (args.fontColor) hdr.format.font.color = args.fontColor;
+                hdr.format.font.size = 12;
+              } else if (op === 'add_borders') {
+                var bStyle = Excel.BorderLineStyle[args.borderStyle || 'Thin'] || Excel.BorderLineStyle.thin;
+                var borders = usedRng.format.borders;
+                var bSides = ['EdgeTop','EdgeBottom','EdgeLeft','EdgeRight'];
+                if (usedRng.rowCount > 1) bSides.push('InsideHorizontal');
+                if (usedRng.columnCount > 1) bSides.push('InsideVertical');
+                bSides.forEach(function(side) {
+                  borders.getItem(Excel.BorderIndex[side]).style = bStyle;
+                });
+              } else if (op === 'clear_content') {
+                usedRng.clear(Excel.ClearApplyTo.contents);
+              } else if (op === 'set_tab_color') {
+                if (args.tabColor) sh.tabColor = args.tabColor;
+              }
+              await context.sync();
+              processed.push(sh.name);
+            }
+            result = 'Applied ' + op + ' to ' + processed.length + ' sheets: ' + processed.join(', ');
           }
         }
 
@@ -3301,6 +3423,25 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'apply_to_all_sheets',
+      description: 'Apply a batch operation to all sheets (or a list of sheets) at once. Use this instead of looping through sheets one by one. Operations: auto_fit, freeze_header, format_header, add_borders, clear_content, set_tab_color.',
+      parameters: {
+        type: 'object',
+        properties: {
+          operation: { type: 'string', enum: ['auto_fit','freeze_header','format_header','add_borders','clear_content','set_tab_color'], description: 'Operation to apply to all sheets' },
+          exclude_sheets: { type: 'array', items: { type: 'string' }, description: 'Sheet names to skip (optional)' },
+          fillColor:   { type: 'string', description: 'Header fill color for format_header (e.g. #1F3864)' },
+          fontColor:   { type: 'string', description: 'Header font color for format_header (e.g. #FFFFFF)' },
+          tabColor:    { type: 'string', description: 'Tab color hex for set_tab_color (e.g. #00B050)' },
+          borderStyle: { type: 'string', enum: ['Thin','Medium','Thick'], description: 'Border style for add_borders (default Thin)' }
+        },
+        required: ['operation']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'task_complete',
       description: 'Call this when the task is fully finished. Provide a summary of what was done.',
       parameters: {
@@ -3344,6 +3485,7 @@ CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
 MEMORY:       save_memory, get_memory
 ANALYSIS:     analyze_data, clean_data, highlight_outliers
 VALIDATION:   add_data_validation
+BATCH:        apply_to_all_sheets (operations: auto_fit, freeze_header, format_header, add_borders, clear_content, set_tab_color)
 UTILS:        smart_fill, protect_sheet, unprotect_sheet, sort_range, clear_range, undo_last_action, task_complete
 
 ═══════════════════════════════════════
@@ -3576,6 +3718,82 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
   if (iterations >= maxIter && !stopRequested) {
     addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  THEME SELECTOR
+// ═══════════════════════════════════════════════════════════
+
+var THEMES = {
+  dark: {
+    "--bg":      "#0d0f14",
+    "--bg2":     "#14171f",
+    "--bg3":     "#1c2030",
+    "--border":  "#2a2f42",
+    "--accent":  "#00e5a0",
+    "--accent2": "#0099ff",
+    "--danger":  "#ff4d6d",
+    "--text":    "#e8eaf0",
+    "--muted":   "#6b7280",
+    "--user-bg": "#1a2a1f",
+    "--ai-bg":   "#141824"
+  },
+  light: {
+    "--bg":      "#f0f2f8",
+    "--bg2":     "#ffffff",
+    "--bg3":     "#e8ebf5",
+    "--border":  "#d1d5e8",
+    "--accent":  "#6366f1",
+    "--accent2": "#0099ff",
+    "--danger":  "#ef4444",
+    "--text":    "#1a1a2e",
+    "--muted":   "#64748b",
+    "--user-bg": "#eef2ff",
+    "--ai-bg":   "#f8faff"
+  },
+  midnight: {
+    "--bg":      "#070b14",
+    "--bg2":     "#0f1628",
+    "--bg3":     "#161e35",
+    "--border":  "#1e2a45",
+    "--accent":  "#7c3aed",
+    "--accent2": "#06b6d4",
+    "--danger":  "#f43f5e",
+    "--text":    "#e2e8f0",
+    "--muted":   "#64748b",
+    "--user-bg": "#1a0f2e",
+    "--ai-bg":   "#0d1220"
+  }
+};
+
+function applyTheme(name) {
+  var theme = THEMES[name];
+  if (!theme) return;
+  var root = document.documentElement;
+  Object.keys(theme).forEach(function(key) {
+    root.style.setProperty(key, theme[key]);
+  });
+  // Update active card
+  document.querySelectorAll(".theme-card").forEach(function(c) {
+    c.classList.remove("active");
+  });
+  var card = document.getElementById("theme-" + name);
+  if (card) card.classList.add("active");
+  // Update send button color for light theme
+  var sendBtn = document.getElementById("send-btn");
+  if (sendBtn) {
+    sendBtn.style.background = theme["--accent"];
+    sendBtn.style.color = name === "light" ? "#ffffff" : "#000000";
+  }
+  // Persist
+  try { storage.setItem("selectedTheme", name); } catch(e) {}
+}
+
+function loadSavedTheme() {
+  try {
+    var saved = storage.getItem("selectedTheme");
+    if (saved && THEMES[saved]) applyTheme(saved);
+  } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════════════════
