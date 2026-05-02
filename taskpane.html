@@ -3347,6 +3347,21 @@ VALIDATION:   add_data_validation
 UTILS:        smart_fill, protect_sheet, unprotect_sheet, sort_range, clear_range, undo_last_action, task_complete
 
 ═══════════════════════════════════════
+ERROR RECOVERY RULES
+═══════════════════════════════════════
+When a tool returns an ERROR message, you MUST follow these rules:
+1. READ the full error message including any RETRY HINT carefully
+2. NEVER call the same tool with the same arguments again after an error
+3. ALWAYS try the suggested approach from the RETRY HINT
+4. If error says "cell-editing mode" → call activate_sheet first, then retry
+5. If error says "dimension mismatch" → pass only the top-left cell as range (e.g. "A1"), never guess the full range
+6. If error says "not found" → call get_sheet_names to confirm sheet names, then retry
+7. If error says "missing required args" or args were {} → re-read the tool definition and provide ALL required parameters
+8. If a tool fails twice → try a completely different approach to achieve the same result
+9. If conditional_format fails → use formula_conditional_format instead
+10. Maximum 2 retries per operation — if still failing, skip it and explain why in task_complete
+
+═══════════════════════════════════════
 PROFESSIONAL FORMATTING STANDARDS
 ═══════════════════════════════════════
 Whenever you write data or create a report, ALWAYS apply professional formatting automatically:
@@ -3540,7 +3555,7 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
       try {
         toolResult = await executeTool(toolName, toolArgs);
       } catch(e) {
-        toolResult = 'ERROR: ' + e.message;
+        toolResult = buildErrorHint(toolName, toolArgs, e.message);
         addMessage('error', `Tool ${toolName} failed: ${e.message}`);
       }
 
@@ -3561,6 +3576,57 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
   if (iterations >= maxIter && !stopRequested) {
     addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SMARTER ERROR RECOVERY — buildErrorHint
+// ═══════════════════════════════════════════════════════════
+
+function buildErrorHint(toolName, toolArgs, errMsg) {
+  const e = String(errMsg || '').toLowerCase();
+  let hint = '';
+
+  // ── Common Excel API errors ──
+  if (e.includes('cell-editing mode') || e.includes('cell editing mode') || e.includes('edit mode')) {
+    hint = 'RETRY HINT: Excel is in cell-editing mode. Call activate_sheet first to exit edit mode, then retry the operation.';
+  }
+  else if (e.includes('dimension') || e.includes('mismatch') || e.includes('resize') || e.includes('rowcount') || e.includes('columncount')) {
+    hint = 'RETRY HINT: Range dimension mismatch. The values array rows/columns do not match the target range size. ' +
+           'Re-derive the range from the values array: use the top-left cell only and let the code resize. ' +
+           'For write_range, pass only the top-left cell as the range (e.g. "A1" not "A1:D10").';
+  }
+  else if (e.includes('not found') || e.includes('itemnotfound') || e.includes('does not exist')) {
+    if (toolName === 'write_range' || toolName === 'read_range' || toolName === 'format_range') {
+      hint = 'RETRY HINT: Sheet or range not found. Call get_sheet_names first to confirm the exact sheet name, then retry with the correct name.';
+    } else {
+      hint = 'RETRY HINT: Item not found. Verify the sheet name exists by calling get_sheet_names, then retry.';
+    }
+  }
+  else if (e.includes('invalid argument') || e.includes('invalidargument') || e.includes('value is not valid')) {
+    if (toolName === 'create_chart') {
+      hint = 'RETRY HINT: Invalid chart argument. Valid chart types are: bar, column, line, pie, area, scatter. Check seriesBy is "rows" or "columns". Ensure the data range contains at least 2 rows.';
+    } else if (toolName === 'format_range') {
+      hint = 'RETRY HINT: Invalid format argument. Check: fillColor and color must be valid hex strings like "#FF0000". horizontalAlignment must be "Left", "Center", or "Right". fontSize must be a number.';
+    } else if (toolName === 'add_borders') {
+      hint = 'RETRY HINT: Invalid border style. Use style: "Thin", "Medium", or "Thick" — not "thin" or "THIN" (case-sensitive).';
+    } else {
+      hint = 'RETRY HINT: Invalid argument. Check all argument values match the expected types and allowed values described in the tool definition.';
+    }
+  }
+  else if (e.includes('missing required') || (toolArgs && Object.keys(toolArgs).length === 0)) {
+    hint = 'RETRY HINT: Required arguments were missing or empty. You must provide all required parameters for ' + toolName + '. Do not call tools with empty {} arguments.';
+  }
+  else if (e.includes('formula') || e.includes('syntax')) {
+    hint = 'RETRY HINT: Formula syntax error. Check the formula starts with = and uses correct Excel syntax. Avoid using named ranges that may not exist.';
+  }
+  else if (e.includes('generalexception') || e.includes('unknown')) {
+    hint = 'RETRY HINT: Unexpected Excel error. Try a simpler version of this operation — break it into smaller steps or use a different tool.';
+  }
+
+  const base = 'ERROR: ' + errMsg;
+  return hint ? base + '
+' + hint + '
+Do NOT repeat the same call. Try the suggested approach instead.' : base;
 }
 
 // ═══════════════════════════════════════════════════════════
