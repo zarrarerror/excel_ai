@@ -3611,7 +3611,7 @@ function extractFormula(text) {
 }
 
 // Single-turn formula AI call — works for all 6 providers via callAI()
-// Read headers from active sheet to give Formula Assistant column context
+// Read headers from active sheet — detects vertical OR horizontal layout
 async function getSheetHeaderContext() {
   try {
     return await Excel.run(async (context) => {
@@ -3621,19 +3621,51 @@ async function getSheetHeaderContext() {
       usedRange.load(['rowCount','columnCount']);
       await context.sync();
       if (!usedRange || usedRange.rowCount === 0) return null;
-      // Read first row (headers) only
+
       const numCols = Math.min(usedRange.columnCount, 30);
-      const headerRow = sheet.getRange('A1').getResizedRange(0, numCols - 1);
-      headerRow.load('values');
-      await context.sync();
-      const headers = headerRow.values[0];
-      // Build column map: A=Code, B=Description, G=Qty etc.
+      const numRows = Math.min(usedRange.rowCount, 30);
       const colLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-      const colMap = headers
-        .map((h, i) => h ? colLetters[i] + '=' + String(h).trim() : null)
+
+      // Read row 1 and column A to detect layout
+      const headerRow = sheet.getRange('A1').getResizedRange(0, numCols - 1);
+      const headerCol = sheet.getRange('A1').getResizedRange(numRows - 1, 0);
+      headerRow.load('values');
+      headerCol.load('values');
+      await context.sync();
+
+      const row1 = headerRow.values[0];
+      const colA = headerCol.values.map(function(r) { return r[0]; });
+
+      // Count non-empty text cells in row 1 vs column A
+      function isText(v) { return v && isNaN(v) && String(v).trim() !== ''; }
+      const row1TextCount = row1.filter(isText).length;
+      const colATextCount = colA.filter(isText).length;
+
+      // VERTICAL layout: headers in row 1 (standard — most common)
+      if (row1TextCount >= colATextCount || row1TextCount >= 2) {
+        const colMap = row1
+          .map(function(h, i) { return h ? colLetters[i] + '=' + String(h).trim() : null; })
+          .filter(Boolean)
+          .join(', ');
+        return {
+          sheetName: sheet.name,
+          layout: 'vertical',
+          contextLine: 'Headers are in ROW 1. Columns: ' + colMap
+        };
+      }
+
+      // HORIZONTAL layout: headers in column A (data goes right across rows)
+      const rowMap = colA
+        .map(function(h, i) { return h ? 'Row ' + (i + 1) + '=' + String(h).trim() : null; })
         .filter(Boolean)
         .join(', ');
-      return { sheetName: sheet.name, colMap };
+      return {
+        sheetName: sheet.name,
+        layout: 'horizontal',
+        contextLine: 'Data is laid out HORIZONTALLY. Headers are in COLUMN A going down. ' +
+          'Rows: ' + rowMap + '. Data expands to the right across columns B, C, D... ' +
+          'Use HLOOKUP, INDEX/MATCH by row, or reference specific row numbers in formulas.'
+      };
     });
   } catch(e) {
     return null;
@@ -3643,13 +3675,7 @@ async function getSheetHeaderContext() {
 async function runFormulaAssistant(userText, sheetContext) {
   let contextNote = '';
   if (sheetContext) {
-    contextNote = `
-
-ACTIVE SHEET CONTEXT (use this to map column names to letters):
-Sheet: ${sheetContext.sheetName}
-Columns: ${sheetContext.colMap}
-
-When the user refers to a column by name (e.g. "Qty", "Price", "Date"), use the correct column letter from the map above.`;
+    contextNote = `\n\nACTIVE SHEET CONTEXT:\nSheet: ${sheetContext.sheetName}\nLayout: ${sheetContext.layout === "horizontal" ? "HORIZONTAL (headers in column A, data goes right)" : "VERTICAL (headers in row 1, data goes down)"}\n${sheetContext.contextLine}\n\nAlways use the correct column letters or row numbers from the context above.`;
   }
 
   const formulaSystemPrompt = `You are an expert Microsoft Excel formula assistant.
