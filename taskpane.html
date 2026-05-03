@@ -1845,12 +1845,12 @@ async function executeTool(toolName, args) {
             const rng = sheet.getRange(args.range);
             if (args.bold !== undefined)        rng.format.font.bold = args.bold;
             if (args.italic !== undefined)      rng.format.font.italic = args.italic;
-            if (args.fontSize !== undefined)    rng.format.font.size = args.fontSize;
-            if (args.color !== undefined)       rng.format.font.color = args.color;
-            if (args.fillColor !== undefined)   rng.format.fill.color = args.fillColor;
-            if (args.numberFormat !== undefined) rng.numberFormat = [[args.numberFormat]];
+            if (args.fontSize !== undefined && args.fontSize !== '') rng.format.font.size = Number(args.fontSize);
+            if (args.color !== undefined && args.color !== '')       rng.format.font.color = args.color;
+            if (args.fillColor !== undefined && args.fillColor !== '') rng.format.fill.color = args.fillColor;
+            if (args.numberFormat !== undefined && args.numberFormat !== '') rng.numberFormat = [[args.numberFormat]];
             if (args.wrapText !== undefined)    rng.format.wrapText = args.wrapText;
-            if (args.horizontalAlignment !== undefined) rng.format.horizontalAlignment = args.horizontalAlignment;
+            if (args.horizontalAlignment !== undefined && args.horizontalAlignment !== '') rng.format.horizontalAlignment = args.horizontalAlignment;
             await context.sync();
             result = `Formatted ${args.sheet}!${args.range}`;
           }
@@ -3502,11 +3502,14 @@ When a tool returns an ERROR message, you MUST follow these rules:
 8. If a tool fails twice → try a completely different approach to achieve the same result
 9. If conditional_format fails → use formula_conditional_format instead
 10. Maximum 2 retries per operation — if still failing, skip it and explain why in task_complete
+11. format_range specifically: if it fails once, do NOT retry it — skip formatting entirely and call task_complete. The write/data task is already complete; formatting is optional polish.
 
 ═══════════════════════════════════════
 PROFESSIONAL FORMATTING STANDARDS
 ═══════════════════════════════════════
-Whenever you write data or create a report, ALWAYS apply professional formatting automatically:
+FORMATTING RULE: Only apply formatting when (a) explicitly asked by the user, OR (b) you are creating a brand-new report/dashboard/table from scratch.
+Do NOT auto-format when simply updating or writing values into an EXISTING sheet — just complete the write task and call task_complete.
+When formatting IS appropriate, follow these standards:
 
 HEADERS (row 1 or title rows):
 • Bold: true, fontSize: 12
