@@ -1526,9 +1526,24 @@ function exportConversation() {
 }
 
 function clearChatHistory() {
-  if (!confirm('Clear all chat history?')) return;
+  // WebView2 blocks window.confirm() — use inline confirm toast instead
+  var existing = document.getElementById('clear-confirm-toast');
+  if (existing) { existing.remove(); return; }
+  var toast = document.createElement('div');
+  toast.id = 'clear-confirm-toast';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-bright);border-radius:10px;padding:12px 16px;z-index:9999;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-primary);box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+  toast.innerHTML = '<span>Clear all chat?</span>'
+    + '<button onclick="doClearChat()" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:12px;">Clear</button>'
+    + '<button onclick="document.getElementById(\'clear-confirm-toast\').remove()" style="background:var(--surface);color:var(--text-secondary);border:1px solid var(--border-bright);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">Cancel</button>';
+  document.body.appendChild(toast);
+  setTimeout(function() { var t = document.getElementById('clear-confirm-toast'); if (t) t.remove(); }, 5000);
+}
+
+function doClearChat() {
+  var toast = document.getElementById('clear-confirm-toast');
+  if (toast) toast.remove();
   storage.setItem('chatHistory', '[]');
-  // Remove all messages except the welcome bubble
+  messages = [];
   const msgs = messagesEl.querySelectorAll('.msg');
   msgs.forEach(function(m) { m.remove(); });
   addMessage('system', 'Chat history cleared.');
