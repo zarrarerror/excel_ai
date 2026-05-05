@@ -1,53 +1,92 @@
 # Shayntech Excel AI Add-in — Project Memory
 
 ## Project Overview
-An Excel Office Add-in (task pane) that acts as an agentic AI co-pilot.
+Two products — a free public add-in and a Pro subscription add-in.
+
+### Free Add-in
 - **Live URL**: https://excelai.replit.app/taskpane.html
-- **GitHub**: https://github.com/zarrarerror/excel_ai.git
-- **Hosting**: Replit (static deployment, `python3 -m http.server 5000`)
-- **Manifest**: `manifest.xml` — sideloaded via `\\localhost\ExcelAddins` trusted catalog
+- **GitHub**: https://github.com/zarrarerror/excel_ai.git (public repo)
+- **Hosting**: Replit `excelai` project (static, `python3 -m http.server 5000`)
+- **File**: `taskpane.html` (single HTML+JS+CSS file at repo root)
+- **Manifest**: `manifest.xml` — sideloaded via `\\localhost\ExcelAddins`
 
-## Files
-| File | Purpose |
-|------|---------|
-| `taskpane.html` | Entire add-in (single HTML+JS+CSS file) |
-| `manifest.xml` | Office Add-in manifest pointing to Replit URL |
-| `index.html` | Redirect to taskpane.html for Replit root |
-| `.replit` | Replit run config |
-| `.github/workflows/deploy.yml` | GitHub Actions → Replit sync pipeline |
+### Pro Add-in + Backend
+- **Backend URL**: https://aiexcel.replit.app
+- **GitHub**: https://github.com/zarrarerror/excel_ai.git (same repo, `excel_ai_pro/` subfolder maps to Replit root)
+- **Hosting**: Replit `aiexcel` project (Node.js, `bash start.sh`)
+- **Admin dashboard**: https://aiexcel.replit.app/admin (secured by `ADMIN_SECRET` env var)
 
-## Supported AI Providers
+## CRITICAL: Replit File Size Limit
+Replit's git checkout corrupts files based on **byte size**, not line count. Files above ~1500 bytes
+get replacement-type null bytes (content is lost — cannot be recovered). Files slightly over get
+padding-type null bytes (content intact — stripping recovers them).
+**RULES:**
+1. Keep every backend file under **1200 bytes** (≈ 20 compact lines). Split if larger.
+2. Never use multi-line bash strings in start.sh — use single-quoted single-line `node -e '...'`.
+3. The start.sh null-byte stripper handles padding corruption only; it cannot recover lost content.
+4. After any file grows, check with `wc -c filename` — keep under 1200 bytes.
 
-### OpenRouter
-- Endpoint: `https://openrouter.ai/api/v1/chat/completions`
-- Required headers: `Authorization: Bearer <key>`, `HTTP-Referer: https://excelai.replit.app`, `X-Title: Shayntech AI Agent`
-- Free models: `deepseek/deepseek-r1:free`, `meta-llama/llama-3.3-70b-instruct:free`, `google/gemma-3-27b-it:free`, `mistralai/mistral-small-3.1-24b-instruct:free`, `microsoft/phi-4-reasoning-plus:free`
-- Known issues: Free tier 429 rate limits (switch model or wait); some models don't support tool calling (auto-retries without tools on 422)
-
-### Qwen / Alibaba DashScope
-- **Standard international endpoint (API Host field)**: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
-- **Standard China endpoint**: `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- API Host field: paste only the base URL up to `/v1` — the code appends `/chat/completions` automatically
-- API keys: generated from dashscope.console.aliyun.com → API Keys (starts with `sk-`)
-- MaaS custom endpoints: enter the full base URL e.g. `https://ws-xxx.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`
-- Models: `qwen-turbo` (best for tool calling), `qwen-max`, `qwen-plus`
-- Known issues: `qwen-max` rejects tool calling with 400 (auto-retries without tools); arguments sometimes returned as object not string (normalizeMessage() handles this)
-
-### Ollama (local)
-- Endpoint: `http://localhost:11434` (default)
-- Uses `/v1/chat/completions` (OpenAI-compat) when tools are present
-- Uses `/api/chat` for plain chat
-- Optional API key field for secured Ollama setups
-
-## Key Code Patterns
-
-### Initialization (tracking prevention safe)
-```javascript
-// Uses Office.initialize (not Office.onReady) to avoid localStorage retry loop
-Office.initialize = function(reason) { _officeInitDone = true; if (_domReady) _onBothReady(); };
-// 2-second fallback if office.js is blocked by Edge tracking prevention
-setTimeout(function() { if (!window._appStarted) _onBothReady(); }, 2000);
+## Backend File Structure (excel_ai_pro/)
 ```
+start.sh                    # Entry point: single-line node -e null-byte strip → server.js (6 lines)
+backend/
+  server.js                 # Express app, routes only (20 lines, 1212 bytes)
+  routes/
+    auth.js                 # register, login, /me (48 lines, 3100 bytes — stripped OK)
+    auth-reset.js           # POST /forgot-password (10 lines, 313 bytes)
+    chat.js                 # POST /api/chat, POST /api/chat/log (65 lines, 2772 bytes)
+    admin.js                # GET /api/admin/stats (20 lines, 742 bytes)
+    webhook.js              # Razorpay webhook stub (10 lines, 313 bytes)
+  lib/
+    supabase.js             # Supabase client init
+    openai.js               # callOpenAI, routeModel, normalizeToolCalls, constants (61 lines)
+    usage.js                # requireAuth, checkUsage, incrementUsage, logTokens (46 lines)
+addin/
+  taskpane.html             # Pro add-in (login + chat UI)
+admin/
+  index.html                # Admin dashboard HTML
+supabase/
+  schema.sql                # Full DB schema with RLS
+```
+
+## Replit Secrets Required
+| Secret | Purpose |
+|--------|---------|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role (bypasses RLS) |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `ADMIN_SECRET` | Password for /admin dashboard |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | (unused — switching to Razorpay) |
+| `LEMONSQUEEZY_CHECKOUT_URL` | (unused — switching to Razorpay) |
+| `FREE_USES_LIMIT` | Default: 50 |
+| `PRO_USES_LIMIT` | Default: 1000 |
+| `OPENAI_MODEL_FAST` | Default: gpt-4o (all requests) |
+| `OPENAI_MODEL_HEAVY` | Default: gpt-4o (images/complex) |
+
+## Payment Provider
+**Razorpay** (replacing LemonSqueezy — rejected integration).
+- Indian business registration accepted
+- Supports international payments + subscriptions
+- Webhook: update `routes/webhook.js` for Razorpay signature verification
+
+## Supabase Schema (key tables)
+- `profiles`: id, email, lifetime_usage, monthly_usage, monthly_reset_at, is_pro, lemon_subscription_id
+- `token_logs`: user_id, model, input_tokens, output_tokens, cost_usd
+- `chat_logs`: user_id, user_email, user_message, ai_response, tools_called (JSONB), model, session_id
+- `pending_activations`: email, subscription_id (service_role only)
+- `user_stats` VIEW: joins profiles + token_logs + chat_logs for admin
+
+## AI Model Routing (lib/openai.js)
+- Default: `gpt-4o` for ALL requests (env: `OPENAI_MODEL_FAST`)
+- Heavy: `gpt-4o` for images/complex (env: `OPENAI_MODEL_HEAVY`)
+- 429 rate limit: auto-retry up to 3 times with backoff
+- Images: `detail: 'low'` to stay under 30K TPM limit
+
+## Frontend Key Patterns (addin/taskpane.html)
+
+### Auto context pre-loading
+Before every agent run, the frontend reads the active sheet and injects
+full cell data into the system prompt so AI has complete context automatically.
 
 ### Storage wrapper (localStorage may be blocked in WebView2)
 ```javascript
@@ -56,44 +95,41 @@ const storage = { _mem: {}, setItem(k,v){...}, getItem(k){...} }
 
 ### normalizeMessage() — applied to ALL provider responses
 Ensures `tool_calls[].function.arguments` is always a JSON string, not an object.
-Some models (especially Qwen) return arguments as parsed objects which causes 400 on multi-turn calls.
 
 ### write_range / set_formulas_range
-Always derives the actual Excel range from the values array dimensions + top-left cell:
-```javascript
-const topLeft = args.range.split(':')[0];
-const rng = sheet.getRange(topLeft).getResizedRange(numRows - 1, numCols - 1);
-```
-This prevents dimension mismatch errors when the AI guesses the wrong range size.
+Always derives range from values array dimensions + top-left cell only.
+Pass only top-left cell (e.g. "A1"), never guess full range "A1:D10".
 
-### Tool result messages
-`tool_call_id` and `content` are always cast to strings before being added to messages history.
-
-## Agent Settings Defaults
-- Max iterations: 20 (options: 5, 10, 20, 30, 50, 100)
-- Context rows per sheet: 500 (options: 50, 100, 200, 500, 1000, 2000)
+### Pro backend URL
+`const PRO_BACKEND_URL = 'https://aiexcel.replit.app'`
 
 ## Deployment Workflow
-1. Edit `taskpane.html` in workspace (`D:\zarrar\excel_ai\excel_ai\`)
-2. Copy to `/tmp/excel_ai2/` (git working dir)
-3. `git add taskpane.html && git commit -m "..." && git push https://ghp_...@github.com/zarrarerror/excel_ai.git main`
-4. In Replit shell: `git fetch origin && git reset --hard origin/main` then redeploy
+### Pro backend (aiexcel Replit):
+1. Edit files in `D:\zarrar\excel_ai\excel_ai\excel_ai_pro\`
+2. Push via git from `/tmp/repo_check/` (cloned with token)
+3. In aiexcel Replit shell: `git fetch origin && git reset --hard origin/main && bash start.sh`
+4. Click **Republish** in Replit deployment tab
 
-## Sideloading for Colleagues
-Each user must:
-1. Create `C:\ExcelAddins\` folder on their own PC
-2. Share it as a network share (right-click → Share → `ExcelAddins`)
-3. Copy `manifest.xml` into it
-4. Excel → File → Options → Trust Center → Trust Center Settings → Trusted Add-in Catalogs → add `\\localhost\ExcelAddins`, check "Show in Menu"
-5. Restart Excel → Insert → My Add-ins → Shared Folder → Shayntech AI Agent
+### GitHub token
+Token in use: `ghp_****` (stored locally only — never commit to GitHub, expires June 4, 2026)
+Repo: `https://github.com/zarrarerror/excel_ai.git`
+
+## System Prompt Rules (addin/taskpane.html)
+Key rules enforced:
+- R8: VAT/Total placement — always scan for Total row first, write below it
+- R9: No blank rows between Total/VAT/Grand Total
+- Rule 0b: VBA always goes to write_vba_to_sheet tool, never in chat
+- Rule 21: "add price X" = write literal X, not =cell+X formula
+- Mandatory read-first before any write operation
+- gpt-4o understands context well; combined with auto pre-loaded sheet data
 
 ## Common Errors & Fixes
 | Error | Cause | Fix |
 |-------|-------|-----|
-| 400 `function.arguments must be JSON` | Model returned args as object | `normalizeMessage()` applied to all providers |
-| `write_range failed: cannot read length of undefined` | AI called write_range with `{}` | Guard checks args.values is array before use |
-| 404 on Qwen (URL prepended to Replit domain) | Host field missing `https://` | Code auto-prepends `https://` if missing |
-| 401 Qwen | Wrong key for endpoint (MaaS key on DashScope or vice versa) | Use matching key for the endpoint |
-| 429 OpenRouter | Free tier rate limit | Switch to different free model or wait |
-| Office.js not fully loaded | Edge tracking prevention blocks localStorage | normalizeMessage + 2s fallback timer |
-| Settings/Send button not clickable | JS syntax error or truncated file | Check brace balance: `{` count must equal `}` count |
+| `SyntaxError: Unexpected end of input` at backend/routes/*.js | Replit file truncation (file >80 lines) | Split file into smaller modules |
+| `EADDRINUSE port 5000` | Old node process still running | `pkill -f "node server.js"` in start.sh |
+| `python3: command not found` | Replit nodejs-20 has no python3 | Use `node -e "..."` for scripting |
+| 429 gpt-4o TPM limit | 30K tokens/min limit hit | Auto-retry with backoff in callOpenAI() |
+| Usage pill shows 0/1000 | /api/auth/me not returning monthly fields | Fixed in auth.js — returns monthly_usage, remaining, resets_at |
+| `write_range dimension mismatch` | AI guessed wrong range | Pass top-left cell only, let code resize |
+| 400 `function.arguments must be JSON` | Model returned args as object | normalizeToolCalls() in 
