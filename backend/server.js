@@ -47,7 +47,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Shayntech Excel AI Pro backend running on port ${PORT}`);
-  console.log(`   Supabase: ${process.env.SUPABASE_URL ? '✓ configured' : '✗ MISSING'}`);
-  console.log(`   Qwen API: ${process.env.QWEN_API_KEY ? '✓ configured' : '✗ MISSING'}`);
-  console.log(`   LemonSqueezy: ${process.env.LEMONSQUEEZY_WEBHOOK_SECRET ? '✓ configured' : '✗ MISSING'}`);
-});
+  console.log(`   Supabase:     ${process.env.SUPABASE_URL       ? '✓ configured' : '✗ MISSING'}`);
+  console.log(`   OpenAI:       ${process.env.OPENAI_API_KEY     ? '✓ configured' : '✗ MISSING — add OPENAI_API_KEY to Secrets'}`);
+  console.log(`   LemonSqueezy: ${process.env.LEMONSQUEEZY_WEBH
