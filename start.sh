@@ -5,11 +5,10 @@ npm install --silent
 echo "Cleaning null bytes from JS files..."
 node -e "
 var fs=require('fs');
-['server.js','routes/auth.js','routes/chat.js','routes/webhook.js','routes/admin.js','lib/supabase.js','lib/openai.js','lib/usage.js'].forEach(function(f){
+['server.js','routes/auth.js','routes/auth-reset.js','routes/chat.js','routes/webhook.js','routes/admin.js','lib/supabase.js','lib/openai.js','lib/usage.js'].forEach(function(f){
   try{var b=fs.readFileSync(f);var c=Buffer.from(b.filter(function(x){return x!==0;}));if(c.length!==b.length){fs.writeFileSync(f,c);console.log(f+': removed '+(b.length-c.length)+' null bytes');}}catch(e){}
 });
 "
 
 pkill -f "node server.js" 2>/dev/null; sleep 1
-echo "Starting server..."
-node server.js
+echo "Starting ser

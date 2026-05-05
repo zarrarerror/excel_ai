@@ -10,6 +10,7 @@ app.use(cors({ origin: function(o, cb) { cb(null, true); }, credentials: true })
 app.use('/api/webhook', require('./routes/webhook'));
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth/forgot-password', require('./routes/auth-reset'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 
@@ -26,5 +27,4 @@ app.listen(PORT, '0.0.0.0', function() {
   console.log('Shayntech Excel AI Pro v2.1 running on port ' + PORT);
   console.log('Supabase: ' + (process.env.SUPABASE_URL ? ok : no));
   console.log('OpenAI:   ' + (process.env.OPENAI_API_KEY ? ok : no));
-  console.log('Admin:    ' + (process.env.ADMIN_SECRET ? ok : no + ' (set ADMIN_SECRET to enable /admin)'));
-});
+  console.log('Admin:    ' + (process.env.A
