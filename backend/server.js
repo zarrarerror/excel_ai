@@ -6,6 +6,9 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Project root is one level up from backend/
+const ROOT = path.join(__dirname, '..');
+
 app.use(cors({
   origin: function(origin, callback) {
     return callback(null, true);
@@ -32,12 +35,18 @@ app.get('/api/health', function(req, res) {
   res.json({ status: 'ok', version: '2.0.0', service: 'Shayntech Excel AI Pro' });
 });
 
-// Serve frontend — taskpane.html is at the project root (one level up from backend/)
-var frontendDir = path.join(__dirname, '..');
-app.use(express.static(frontendDir));
-
+// Serve frontend files from project root
 app.get('/', function(req, res) {
-  res.sendFile(path.join(frontendDir, 'taskpane.html'));
+  res.sendFile(path.join(ROOT, 'taskpane.html'));
+});
+app.get('/taskpane.html', function(req, res) {
+  res.sendFile(path.join(ROOT, 'taskpane.html'));
+});
+app.get('/manifest.xml', function(req, res) {
+  res.sendFile(path.join(ROOT, 'manifest.xml'));
+});
+app.get('/index.html', function(req, res) {
+  res.sendFile(path.join(ROOT, 'index.html'));
 });
 
 // Global error handler
@@ -49,6 +58,4 @@ app.use(function(err, req, res, next) {
 app.listen(PORT, '0.0.0.0', function() {
   var ok = 'OK';
   var no = 'MISSING';
-  console.log('Shayntech Excel AI Pro backend running on port ' + PORT);
-  console.log('Supabase:     ' + (process.env.SUPABASE_URL ? ok : no));
-  console.log('OpenAI:       ' + (process.env.OPENAI_API_KEY ? ok : no + ' - add OPENAI_API_KEY to Secrets'));
+  console.
