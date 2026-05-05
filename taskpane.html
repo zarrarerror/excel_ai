@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Shayntech AI Agent</title>
+<title>Shayntech Excel AI Pro</title>
 
 <!-- Office.js SDK -->
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
@@ -758,6 +758,92 @@
     border-top: 1px solid var(--border);
   }
   .tpl-inserting.show { display: flex; }
+
+/* ── PRO: Login screen ── */
+#login-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; z-index: 10000; padding: 24px;
+}
+#login-screen.hidden { display: none; }
+.login-logo { font-size: 22px; font-weight: 800; color: var(--accent);
+  letter-spacing: -0.5px; margin-bottom: 4px; }
+.login-tagline { font-size: 11px; color: var(--muted); margin-bottom: 28px; text-align:center; }
+.login-box { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; width: 100%; max-width: 320px; }
+.login-tab-row { display: flex; gap: 0; margin-bottom: 20px;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.login-tab { flex: 1; padding: 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; background: transparent; border: none;
+  color: var(--muted); transition: all 0.2s; }
+.login-tab.active { background: var(--accent); color: #fff; }
+.login-field { margin-bottom: 12px; }
+.login-field label { display: block; font-size: 11px; color: var(--muted);
+  margin-bottom: 4px; font-weight: 500; }
+.login-field input { width: 100%; box-sizing: border-box; padding: 9px 11px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--text); font-size: 13px; outline: none; }
+.login-field input:focus { border-color: var(--accent); }
+.login-submit { width: 100%; padding: 10px; background: var(--accent);
+  color: #fff; border: none; border-radius: 7px; font-size: 13px;
+  font-weight: 700; cursor: pointer; margin-top: 4px; transition: opacity 0.2s; }
+.login-submit:hover { opacity: 0.85; }
+.login-error { color: #ef4444; font-size: 11px; margin-top: 8px;
+  text-align: center; min-height: 16px; }
+.login-spinner { text-align: center; color: var(--muted); font-size: 12px;
+  margin-top: 8px; }
+
+/* ── PRO: Usage counter in toolbar ── */
+#usage-pill {
+  font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: 20px; background: rgba(0,229,160,0.12); border: 1px solid var(--accent);
+  color: var(--accent); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: all 0.2s; letter-spacing: 0.02em;
+}
+#usage-pill:hover { background: rgba(0,229,160,0.22); }
+#usage-pill.warning { background: rgba(245,158,11,0.12); border-color: #f59e0b; color: #f59e0b; }
+#usage-pill.danger  { background: rgba(239,68,68,0.12); border-color: #ef4444; color: #ef4444; animation: pulse 1.5s infinite; }
+#usage-pill.pro     { background: rgba(34,197,94,0.12); border-color: #22c55e; color: #22c55e; }
+
+/* ── PRO: Upgrade modal ── */
+#upgrade-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: none; align-items: center; justify-content: center;
+  z-index: 9999; padding: 20px;
+}
+#upgrade-modal.show { display: flex; }
+.upgrade-card { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 28px 24px; max-width: 300px; text-align: center; }
+.upgrade-card h2 { font-size: 17px; font-weight: 800; margin: 0 0 8px;
+  color: var(--text); }
+.upgrade-card p { font-size: 12px; color: var(--muted); margin: 0 0 20px;
+  line-height: 1.6; }
+.upgrade-price { font-size: 26px; font-weight: 900; color: var(--accent);
+  margin-bottom: 4px; }
+.upgrade-price span { font-size: 13px; font-weight: 400; color: var(--muted); }
+.upgrade-btn { display: block; width: 100%; padding: 11px;
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 16px;
+  text-decoration: none; }
+.upgrade-btn:hover { opacity: 0.85; }
+.upgrade-close { background: transparent; border: none; color: var(--muted);
+  font-size: 11px; cursor: pointer; margin-top: 10px; text-decoration: underline; }
+
+
+/* ── Language Toggle ── */
+.lang-toggle {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+}
+.lang-btn {
+  font-size: 10px; font-weight: 700; padding: 3px 7px;
+  border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer;
+  transition: all 0.15s; font-family: var(--font-body);
+}
+.lang-btn.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #000;
+}
 </style>
 </head>
 <body>
@@ -767,6 +853,11 @@
   <div class="brand">
     <span class="brand-name">Shayntech</span>
     <span class="brand-tag">AI Agent</span>
+  </div>
+  <span id="usage-pill" onclick="showUpgradeModal()" title="Click to upgrade">50 free left</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="lang-en" onclick="setLanguage('en')">EN</button>
+    <button class="lang-btn" id="lang-ar" onclick="setLanguage('ar')">ع</button>
   </div>
   <div id="status-dot" class="status-dot"></div>
 </div>
@@ -1210,7 +1301,7 @@ function _onBothReady() {
     if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
       officeReady = true;
     } else {
-      officeReady = true; // allow UI regardless
+      officeReady = true;
     }
   } catch(e) {
     officeReady = true;
@@ -1218,6 +1309,14 @@ function _onBothReady() {
   setStatus('ready');
   loadSettings();
   loadSavedTheme();
+  // PRO: check login
+  var token = storage.getItem('pro_token');
+  if (!token) {
+    showLoginScreen();
+  } else {
+    hideLoginScreen();
+    refreshUsagePill();
+  }
 }
 
 // NOTE: _domReady = true and timeout fallback are set at the bottom of the script
@@ -1390,7 +1489,17 @@ async function readFile(file) {
   if (name.endsWith('.csv') || name.endsWith('.txt')) return await readText(file);
   if (name.endsWith('.json')) return await readJSON(file);
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) return await readXLSX(file);
-  throw new Error('Unsupported file type. Use PDF, CSV, XLSX, TXT, or JSON.');
+  if (name.match(/\.(png|jpg|jpeg|gif|bmp|webp)$/)) return await readImage(file);
+  throw new Error('Unsupported file type. Supported: PDF, CSV, XLSX, TXT, JSON, PNG, JPG, WEBP.');
+}
+
+async function readImage(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = (e) => res(e.target.result); // returns data:image/...;base64,...
+    reader.onerror = () => rej(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function readText(file) {
@@ -1658,14 +1767,13 @@ setTimeout(function() {
 }, 2000);
 
 function hasValidConfig() {
-  const p = cfg.provider;
-  if (p === 'openrouter') return !!cfg.or.key && !!cfg.or.model;
-  if (p === 'gemini')     return !!cfg.gm?.key && !!cfg.gm?.model;
-  if (p === 'groq')       return !!cfg.gq?.key && !!cfg.gq?.model;
-  if (p === 'claude')     return !!cfg.cl?.key && !!cfg.cl?.model;
-  if (p === 'qwen')       return !!cfg.qw.key && !!cfg.qw.model;
-  if (p === 'ollama')     return !!cfg.ol.url && !!cfg.ol.model;
-  return false;
+  // PRO version: valid if user is logged in (has token)
+  var token = storage.getItem('pro_token');
+  if (!token) {
+    showLoginScreen();
+    return false;
+  }
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2395,6 +2503,78 @@ async function executeTool(toolName, args) {
             result = 'Undone: restored previous values in ' + snap.sheet + '!' + snap.range;
           }
         }
+        else if (toolName === 'write_vba_to_sheet') {
+          if (!need(['module_name','code'])) {
+            // result already set by need()
+          } else {
+            const VBA_SHEET = 'VBA Code';
+            // Get or create the VBA Code sheet
+            let vbaSheet;
+            const sheets = context.workbook.worksheets;
+            sheets.load('items/name');
+            await context.sync();
+            const existing = sheets.items.find(function(s){ return s.name === VBA_SHEET; });
+            if (existing) {
+              vbaSheet = existing;
+            } else {
+              vbaSheet = sheets.add(VBA_SHEET);
+            }
+
+            // Find the next free row (look for first empty A cell)
+            const usedRange = vbaSheet.getUsedRangeOrNullObject();
+            usedRange.load(['rowCount','isNullObject']);
+            await context.sync();
+            let startRow = usedRange.isNullObject ? 1 : usedRange.rowCount + 3;
+
+            // Split code into lines
+            const lines = args.code.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+            const moduleLabel = args.module_name || 'Macro';
+            const desc = args.description || '';
+
+            // Write title row, description, then code lines
+            const rows = [];
+            rows.push(['📋 Module: ' + moduleLabel]);
+            if (desc) rows.push([desc]);
+            rows.push(['──────────────────────────────────────────────']);
+            rows.push(['HOW TO USE: Press Alt+F11 → Insert → Module → Paste the code below']);
+            rows.push(['']);
+            lines.forEach(function(line){ rows.push([line]); });
+            rows.push(['']);
+            rows.push(['── End of ' + moduleLabel + ' ──']);
+
+            const numRows = rows.length;
+            const topLeftCell = 'A' + startRow;
+            vbaSheet.getRange(topLeftCell).getResizedRange(numRows - 1, 0).values = rows;
+
+            // Format title row (bold, accent color)
+            const titleRng = vbaSheet.getRange('A' + startRow);
+            titleRng.format.font.bold = true;
+            titleRng.format.font.size = 12;
+            titleRng.format.font.color = '#00B0F0';
+
+            // Format instruction row
+            const instrRng = vbaSheet.getRange('A' + (startRow + (desc ? 3 : 2)));
+            instrRng.format.font.color = '#FF8C00';
+            instrRng.format.font.italic = true;
+
+            // Format code lines: monospace font (Courier New)
+            const codeStartRow = startRow + (desc ? 5 : 4);
+            const codeEndRow   = codeStartRow + lines.length - 1;
+            if (codeEndRow >= codeStartRow) {
+              const codeRng = vbaSheet.getRange('A' + codeStartRow + ':A' + codeEndRow);
+              codeRng.format.font.name = 'Courier New';
+              codeRng.format.font.size = 10;
+              codeRng.format.fill.color = '#1E1E1E';
+              codeRng.format.font.color = '#D4D4D4';
+            }
+
+            // Auto-fit column A
+            vbaSheet.getRange('A:A').format.autofitColumns();
+            vbaSheet.activate();
+            await context.sync();
+            result = 'VBA macro "' + moduleLabel + '" written to the "' + VBA_SHEET + '" sheet (' + lines.length + ' lines). Switch to that sheet to copy and paste it into the VBA editor (Alt+F11 → Insert → Module).';
+          }
+        }
         else {
           result = `Unknown tool: ${toolName}`;
         }
@@ -2455,16 +2635,69 @@ function normalizeMessages(messages) {
   });
 }
 
-async function callAI(messages, tools) {
-  const p = cfg.provider;
+// ── PRO: Backend proxy call ──
+var PRO_BACKEND_URL = 'https://aiexcel.replit.app'; // update after Replit deploy
 
-  if (p === 'openrouter') return callOpenRouter(messages, tools);
-  if (p === 'gemini')     return callGemini(messages, tools);
-  if (p === 'groq')       return callGroq(messages, tools);
-  if (p === 'claude')     return callClaude(messages, tools);
-  if (p === 'qwen')       return callQwen(messages, tools);
-  if (p === 'ollama')     return callOllama(messages, tools);
-  throw new Error('Unknown provider: ' + p);
+async function callAI(messages, tools) {
+  return callProBackend(messages, tools);
+}
+
+async function callProBackend(messages, tools) {
+  var token = storage.getItem('pro_token');
+  if (!token) throw new Error('Not logged in. Please log in to continue.');
+
+  // Detect attachment type for model routing
+  var attachedFile = document.getElementById('attached-file-name');
+  var attachedName = (attachedFile && attachedFile.textContent) ? attachedFile.textContent.toLowerCase() : '';
+  var attachType = '';
+  if (attachedName) {
+    if (attachedName.endsWith('.pdf')) attachType = 'pdf';
+    else if (attachedName.match(/\.(png|jpg|jpeg|gif|bmp|webp)$/)) attachType = 'image';
+    else attachType = 'file';
+  }
+
+  var body = {
+    messages: normalizeMessages(messages),
+    has_attachment: !!attachType,
+    attachment_type: attachType
+  };
+  if (tools && tools.length > 0) {
+    body.tools = tools;
+    body.tool_choice = 'auto';
+  }
+
+  var res = await fetch(PRO_BACKEND_URL + '/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (res.status === 401) {
+    storage.setItem('pro_token', '');
+    showLoginScreen();
+    throw new Error('Session expired. Please log in again.');
+  }
+
+  if (res.status === 402) {
+    var errData = await res.json();
+    var checkoutUrl = errData.checkout_url || '#';
+    showUpgradeModal(checkoutUrl);
+    throw new Error(errData.message || 'Free limit reached. Please upgrade.');
+  }
+
+  if (!res.ok) {
+    var errData2 = await res.json().catch(function() { return {}; });
+    throw new Error(errData2.error || 'Backend error ' + res.status);
+  }
+
+  var data = await res.json();
+  // Refresh usage pill after each call
+  refreshUsagePill();
+  if (!data.choices || !data.choices[0]) throw new Error('No response from AI backend. Please try again.');
+  return normalizeMessage(data.choices[0].message);
 }
 
 async function callOpenRouter(messages, tools) {
@@ -2902,7 +3135,7 @@ const TOOL_DEFINITIONS = [
         properties: {
           sheet:  { type: 'string', description: 'Worksheet name' },
           range:  { type: 'string', description: 'Cell range e.g. A1 or A1:D10' },
-          values: { type: 'array', items: { type: 'array' }, description: '2D array of values. Each inner array is a row.' }
+          values: { type: 'array', items: { type: 'array', items: {} }, description: '2D array of values. Each inner array is a row.' }
         },
         required: ['sheet','range','values']
       }
@@ -2934,7 +3167,7 @@ const TOOL_DEFINITIONS = [
         properties: {
           sheet:    { type: 'string' },
           range:    { type: 'string', description: 'Cell range e.g. C2:C10' },
-          formulas: { type: 'array', items: { type: 'array' }, description: '2D array of formula strings' }
+          formulas: { type: 'array', items: { type: 'array', items: {} }, description: '2D array of formula strings' }
         },
         required: ['sheet','range','formulas']
       }
@@ -3457,6 +3690,22 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'write_vba_to_sheet',
+      description: 'Write a VBA macro to a dedicated "VBA Code" sheet in the workbook. ALWAYS use this tool when the user asks for a VBA macro or Excel macro — never print VBA code as plain text in the chat. The code is written neatly to a sheet so the user can copy it and paste into the VBA editor (Alt+F11).',
+      parameters: {
+        type: 'object',
+        properties: {
+          module_name: { type: 'string', description: 'Name of the VBA module/macro, e.g. "AutoFillSqm" or "SortByDate"' },
+          description: { type: 'string', description: 'One-sentence explanation of what this macro does' },
+          code: { type: 'string', description: 'The full VBA code as a single string with newlines (\\n)' }
+        },
+        required: ['module_name', 'code']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'task_complete',
       description: 'Call this when the task is fully finished. Provide a summary of what was done.',
       parameters: {
@@ -3469,6 +3718,34 @@ const TOOL_DEFINITIONS = [
     }
   }
 ];
+
+// ── Status bar (single updating action indicator) ────────────────
+var _statusBarEl = null;
+
+function updateStatusBar(text) {
+  if (!_statusBarEl || !_statusBarEl.isConnected) {
+    // Create a new status bar element
+    _statusBarEl = document.createElement('div');
+    _statusBarEl.className = 'msg tool-call';
+    _statusBarEl.innerHTML = '<div class="msg-bubble" id="status-bar-bubble">' + text + '</div>';
+    var msgs = document.getElementById('messages');
+    var typing = document.getElementById('typing-indicator');
+    msgs.insertBefore(_statusBarEl, typing);
+  } else {
+    // Update existing one in place
+    var bubble = _statusBarEl.querySelector('.msg-bubble');
+    if (bubble) bubble.textContent = text;
+  }
+  var msgs2 = document.getElementById('messages');
+  msgs2.scrollTop = msgs2.scrollHeight;
+}
+
+function clearStatusBar() {
+  if (_statusBarEl && _statusBarEl.isConnected) {
+    _statusBarEl.remove();
+  }
+  _statusBarEl = null;
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  AGENT LOOP
@@ -3486,10 +3763,19 @@ async function runAgent(userCommand, fileContent, fileName) {
   }
 
   // 2. Build system prompt
+  const langLabel = _userLanguage === 'ar' ? 'Arabic (العربية)' : 'English';
   const systemPrompt = `You are an elite Excel AI Agent built by Shayntech. You are a professional data analyst and spreadsheet designer who creates beautiful, publication-quality workbooks.
 
 ═══════════════════════════════════════
 AVAILABLE TOOLS
+═══════════════════════════════════════
+LANGUAGE RULES
+═══════════════════════════════════════
+1. The user has selected their preferred language: ${langLabel}. Respond ENTIRELY in that language — all explanations, plan steps, tool call reasoning, and task_complete messages.
+2. Never mix English and Arabic in the same response.
+3. When writing Arabic text into Excel cells via write_range, the values will be RTL — always follow up with format_range using horizontalAlignment:'Right' on those cells.
+4. Arabic column headers should also be Right-aligned.
+
 ═══════════════════════════════════════
 DATA:         write_range, read_range, find_replace
 FORMULAS:     set_formula, set_formulas_range
@@ -3502,6 +3788,7 @@ ANALYSIS:     analyze_data, clean_data, highlight_outliers
 VALIDATION:   add_data_validation
 BATCH:        apply_to_all_sheets (operations: auto_fit, freeze_header, format_header, add_borders, clear_content, set_tab_color)
 UTILS:        smart_fill, protect_sheet, unprotect_sheet, sort_range, clear_range, undo_last_action, task_complete
+VBA:          write_vba_to_sheet — ALWAYS use this when creating any VBA macro. NEVER print VBA code as chat text.
 
 ═══════════════════════════════════════
 ERROR RECOVERY RULES
@@ -3575,9 +3862,25 @@ COLOR PALETTE (use consistently):
 • Alternate row: #EBF3FB (very light blue)
 
 ═══════════════════════════════════════
+CRITICAL: READ-FIRST RULES (follow ALWAYS, no exceptions)
+═══════════════════════════════════════
+BEFORE taking ANY write/modify/delete action, you MUST:
+R1. Call get_sheet_names to confirm all sheet names.
+R2. Call read_range on EVERY relevant sheet to understand the full structure — headers, data layout, occupied rows, column positions.
+R3. Only after you have read and understood the data, begin your actions.
+R4. NEVER assume column positions (A, B, C...) from the snapshot alone — ALWAYS verify with read_range before writing.
+R5. If unsure where data ends, call read_range with a wide range first (e.g. A1:Z100) to see the actual structure.
+R6. NEVER overwrite existing data unless the user explicitly asked to replace or modify it.
+R7. When adding a total/summary row: read_range first to find the EXACT last row with data, then write BELOW it — never guess the row number.
+R8. TOTAL/SUBTOTAL ROW RULE: When the user asks you to add VAT, tax, discount, subtotal, or grand total below an existing "Total" row — you MUST: (a) call read_range on a generous range (e.g. A1:Z100) to find the row that contains the word "Total" or "Total price", (b) identify that row number precisely, (c) write VAT on the NEXT row below total, (d) write Grand Total on the row AFTER that. NEVER write above the existing total row. NEVER skip rows (leave blank rows) between total, VAT and grand total.
+R9. EMPTY CELL RULE: When writing VAT + grand total rows, write them consecutively with NO blank rows between: Total row → VAT row → Grand Total row. Do not insert any empty separator rows.
+
+═══════════════════════════════════════
 RULES
 ═══════════════════════════════════════
 1. ALWAYS call task_complete when done with a clear summary.
+0. FILE EXTRACTION RULE (CRITICAL): When the user attaches a file (PDF, CSV, image) and asks to extract data into Excel — you MUST immediately use write_range to write the data into the target sheet. NEVER display the extracted data as a markdown table or list in your response. NEVER describe what you "will write" — just write it using tools. Go straight to get_sheet_names → read_range → write_range.
+0b. VBA RULE (CRITICAL): When the user asks for a VBA macro, Excel macro, or any Visual Basic code — you MUST call write_vba_to_sheet to write the code to the "VBA Code" sheet. NEVER print VBA code in the chat as plain text or in a code block. NEVER give manual copy-paste instructions in the chat. The tool itself tells the user how to open the VBA editor.
 2. Apply professional formatting automatically — do not wait to be asked.
 3. Use exact sheet names from the workbook snapshot below.
 4. write_range values must be 2D array: [["h1","h2"],["v1","v2"]]
@@ -3608,13 +3911,29 @@ AGENT MEMORY (from previous sessions):
 ${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
 
 CURRENT WORKBOOK:
-${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
+${workbookText}${fileContent && !fileContent.startsWith('data:image') ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
 
-  // 3. Conversation history for this agent run
+  // 3. Build first user message — images use vision content block format
+  const isImageAttachment = fileContent && fileContent.startsWith('data:image');
+  let firstUserMessage;
+  if (isImageAttachment) {
+    firstUserMessage = [
+      { type: 'text', text: userCommand + '\n\n[Image attached: ' + fileName + ']' },
+      { type: 'image_url', image_url: { url: fileContent, detail: 'high' } }
+    ];
+  } else {
+    firstUserMessage = userCommand;
+  }
+
+  // 4. Conversation history for this agent run
   const messages = [
     { role: 'system', content: systemPrompt },
-    { role: 'user',   content: userCommand }
+    { role: 'user',   content: firstUserMessage }
   ];
+
+  // 5. Track tool calls made during this session (for chat logging)
+  const _sessionToolCalls = [];
+  let   _sessionFinalResponse = '';
 
   let iterations = 0;
   const maxIter = cfg.maxIter;
@@ -3677,7 +3996,10 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
     if (!toolCalls || toolCalls.length === 0) {
       // Pure text response — show it and end
       const text = assistantMsg.content || '(No response)';
-      if (text.trim()) addMessage('agent', text);
+      if (text.trim()) {
+        addMessage('agent', text);
+        _sessionFinalResponse = text;
+      }
       break;
     }
 
@@ -3701,22 +4023,68 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
         toolArgs = {};
       }
 
+      // Track tool calls for session log
+      _sessionToolCalls.push(toolName);
+
       if (toolName === 'task_complete') {
         const summary = toolArgs.summary || 'Task completed.';
+        _sessionFinalResponse = summary;
+        clearStatusBar();
         addMessage('agent', '✅ Done!\n\n' + summary);
         taskDone = true;
         break;
       }
 
-      // Show the action being taken
-      addMessage('tool-call', `⚡ ${toolName}(${JSON.stringify(toolArgs, null, 0).slice(0, 120)}...)`);
+      // Show friendly status message instead of raw tool call
+      const _friendlyMsg = {
+        read_range:        '📖 Reading data...',
+        get_sheet_names:   '📋 Getting sheet names...',
+        write_range:       '✏️ Writing data...',
+        set_formula:       '🔢 Setting formula...',
+        set_formulas_range:'🔢 Setting formulas...',
+        format_range:      '🎨 Formatting cells...',
+        add_borders:       '🔲 Adding borders...',
+        merge_cells:       '⬛ Merging cells...',
+        auto_fit:          '↔️ Auto-fitting columns...',
+        freeze_panes:      '🔒 Freezing header...',
+        insert_rows:       '➕ Inserting rows...',
+        delete_rows:       '➖ Deleting rows...',
+        insert_columns:    '➕ Inserting columns...',
+        delete_columns:    '➖ Deleting columns...',
+        create_chart:      '📊 Creating chart...',
+        add_sheet:         '📄 Adding sheet...',
+        rename_sheet:      '✏️ Renaming sheet...',
+        delete_sheet:      '🗑️ Deleting sheet...',
+        activate_sheet:    '👆 Switching sheet...',
+        sort_range:        '🔃 Sorting data...',
+        find_replace:      '🔍 Finding & replacing...',
+        conditional_format:'🎨 Applying conditional format...',
+        formula_conditional_format: '🎨 Applying formula format...',
+        clean_data:        '🧹 Cleaning data...',
+        analyze_data:      '🔬 Analyzing data...',
+        highlight_outliers:'🔴 Highlighting outliers...',
+        add_data_validation:'✅ Adding validation...',
+        protect_sheet:     '🔐 Protecting sheet...',
+        unprotect_sheet:   '🔓 Unprotecting sheet...',
+        smart_fill:        '✨ Smart filling...',
+        clear_range:       '🗑️ Clearing cells...',
+        save_memory:       '💾 Saving preferences...',
+        get_memory:        '🧠 Loading preferences...',
+        apply_to_all_sheets:'📑 Applying to all sheets...',
+        undo_last_action:  '↩️ Undoing last action...',
+        write_vba_to_sheet:'💻 Writing VBA code to sheet...',
+        task_complete:     '✅ Completing task...'
+      };
+      const _statusMsg = _friendlyMsg[toolName] || ('⚙️ ' + toolName.replace(/_/g,' ') + '...');
+      updateStatusBar(_statusMsg);
 
       let toolResult = '';
       try {
         toolResult = await executeTool(toolName, toolArgs);
       } catch(e) {
         toolResult = buildErrorHint(toolName, toolArgs, e.message);
-        addMessage('error', `Tool ${toolName} failed: ${e.message}`);
+        clearStatusBar();
+      addMessage('error', `Tool ${toolName} failed: ${e.message}`);
       }
 
       // Add tool result to conversation
@@ -3736,6 +4104,27 @@ ${workbookText}${fileContent ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(4
   if (iterations >= maxIter && !stopRequested) {
     addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
   }
+
+  // ── Fire-and-forget: log this session to Supabase ──
+  try {
+    const _token = storage.getItem('pro_token');
+    if (_token && (userCommand || _sessionFinalResponse)) {
+      fetch(PRO_BACKEND_URL + '/api/chat/log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + _token
+        },
+        body: JSON.stringify({
+          user_message:  String(userCommand || '').slice(0, 2000),
+          ai_response:   String(_sessionFinalResponse || '').slice(0, 4000),
+          tools_called:  _sessionToolCalls,
+          model:         'gpt-4o-mini',
+          session_id:    'session_' + Date.now()
+        })
+      }).catch(function(){});  // non-fatal — ignore errors silently
+    }
+  } catch(_e) {}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4465,6 +4854,188 @@ Fill in the highlighted cells and the formulas will calculate automatically.`);
   }
 }
 
+
+// ════════════════════════════════════════════════════════════
+// PRO: Auth, Usage, Upgrade, Arabic support
+// ════════════════════════════════════════════════════════════
+
+var PRO_BACKEND_URL = 'https://aiexcel.replit.app';
+
+// ── Login screen ──────────────────────────────────────────────
+function showLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  if (ls) ls.classList.remove('hidden');
+}
+
+function hideLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  if (ls) ls.classList.add('hidden');
+}
+
+function switchLoginTab(tab) {
+  var isRegister = tab === 'register';
+  document.getElementById('ltab-login').classList.toggle('active', !isRegister);
+  document.getElementById('ltab-register').classList.toggle('active', isRegister);
+  document.getElementById('login-confirm-row').style.display = isRegister ? 'block' : 'none';
+  document.getElementById('login-submit-btn').textContent = isRegister ? 'Create Account' : 'Sign In';
+  document.getElementById('login-submit-btn').onclick = isRegister ? doRegister : doLogin;
+  document.getElementById('login-error').textContent = '';
+}
+
+async function doLogin() {
+  var email = document.getElementById('login-email').value.trim();
+  var password = document.getElementById('login-password').value;
+  var errEl = document.getElementById('login-error');
+  var btn = document.getElementById('login-submit-btn');
+  if (!email || !password) { errEl.textContent = 'Please enter your email and password.'; return; }
+  btn.textContent = 'Signing in...'; btn.disabled = true; errEl.textContent = '';
+  try {
+    var res = await fetch(PRO_BACKEND_URL + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: password })
+    });
+    var data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; btn.textContent = 'Sign In'; btn.disabled = false; return; }
+    storage.setItem('pro_token', data.token);
+    storage.setItem('pro_email', data.user.email);
+    hideLoginScreen();
+    refreshUsagePill();
+    addMessage('system', 'Welcome back, ' + data.user.email + '! Ready to work.');
+  } catch(e) {
+    errEl.textContent = 'Connection error. Check your internet and try again.';
+  }
+  btn.textContent = 'Sign In'; btn.disabled = false;
+}
+
+async function doRegister() {
+  var email = document.getElementById('login-email').value.trim();
+  var password = document.getElementById('login-password').value;
+  var confirm = document.getElementById('login-confirm').value;
+  var errEl = document.getElementById('login-error');
+  var btn = document.getElementById('login-submit-btn');
+  if (!email || !password) { errEl.textContent = 'Please enter your email and password.'; return; }
+  if (password !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+  if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  btn.textContent = 'Creating account...'; btn.disabled = true; errEl.textContent = '';
+  try {
+    var res = await fetch(PRO_BACKEND_URL + '/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: password })
+    });
+    var data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Registration failed.'; btn.textContent = 'Create Account'; btn.disabled = false; return; }
+    storage.setItem('pro_token', data.token);
+    storage.setItem('pro_email', data.user.email);
+    hideLoginScreen();
+    refreshUsagePill();
+    addMessage('system', 'Account created! You have 50 free requests to get started. Welcome!');
+  } catch(e) {
+    errEl.textContent = 'Connection error. Check your internet and try again.';
+  }
+  btn.textContent = 'Create Account'; btn.disabled = false;
+}
+
+// ── Usage pill ────────────────────────────────────────────────
+async function refreshUsagePill() {
+  var token = storage.getItem('pro_token');
+  if (!token) return;
+  try {
+    var res = await fetch(PRO_BACKEND_URL + '/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return;
+    var data = await res.json();
+    var pill = document.getElementById('usage-pill');
+    if (!pill) return;
+    if (data.is_pro) {
+      var rem   = data.remaining     || 0;
+      var limit = data.monthly_limit || 1000;
+      var resetDate = data.resets_at
+        ? new Date(data.resets_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})
+        : 'next month';
+      pill.textContent = rem + ' / ' + limit + ' left';
+      pill.title = rem + ' requests remaining. Resets ' + resetDate;
+      pill.style.cursor = 'default';
+      pill.onclick = null;
+      if (rem <= 100)       pill.className = 'danger';
+      else if (rem <= 300)  pill.className = 'warning';
+      else                  pill.className = 'pro';
+    } else {
+      var remaining = data.remaining;
+      pill.textContent = remaining + ' free left';
+      pill.onclick = function() { showUpgradeModal(data.checkout_url); };
+      if (remaining <= 0) {
+        pill.className = 'danger';
+        showUpgradeModal(data.checkout_url);
+      } else if (remaining <= 10) {
+        pill.className = 'warning';
+      } else {
+        pill.className = '';
+      }
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// ── Upgrade modal ─────────────────────────────────────────────
+function showUpgradeModal(checkoutUrl) {
+  var modal = document.getElementById('upgrade-modal');
+  var link = document.getElementById('upgrade-checkout-link');
+  if (checkoutUrl && link) link.href = checkoutUrl;
+  if (modal) modal.classList.add('show');
+}
+
+function closeUpgradeModal() {
+  var modal = document.getElementById('upgrade-modal');
+  if (modal) modal.classList.remove('show');
+}
+
+// ── Logout (add to settings tab) ──────────────────────────────
+function logoutPro() {
+  storage.setItem('pro_token', '');
+  storage.setItem('pro_email', '');
+  showLoginScreen();
+  addMessage('system', 'Logged out.');
+}
+
+// ── Language toggle ────────────────────────────────────────────
+var _userLanguage = storage.getItem('lang') || 'en';
+
+function setLanguage(lang) {
+  _userLanguage = lang;
+  storage.setItem('lang', lang);
+  document.getElementById('lang-en').className = 'lang-btn' + (lang === 'en' ? ' active' : '');
+  document.getElementById('lang-ar').className = 'lang-btn' + (lang === 'ar' ? ' active' : '');
+}
+
+// Init toggle state on load
+(function() {
+  var saved = storage.getItem('lang') || 'en';
+  setLanguage(saved);
+})();
+
+// ── Arabic language support ────────────────────────────────────
+// Detect if text contains Arabic characters
+function containsArabic(text) {
+  return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text);
+}
+
+// Auto-apply RTL alignment when writing Arabic content to cells
+var _origWriteRange = null;
+// Patched inside executeTool after write_range to check for Arabic values
+// The system prompt handles language direction instructions
+
+// Patch: after write_range with Arabic values, auto-format RTL
+function isArabicValues(values) {
+  if (!Array.isArray(values)) return false;
+  for (var r = 0; r < values.length; r++) {
+    for (var c = 0; c < values[r].length; c++) {
+      if (containsArabic(String(values[r][c] || ''))) return true;
+    }
+  }
+  return false;
+}
 </script>
 
 <!-- Template Library Modal — direct body child to avoid WebView2 hit-area issues -->
@@ -4488,5 +5059,32 @@ Fill in the highlighted cells and the formulas will calculate automatically.`);
     </div>
   </div>
 </div>
-</body>
-</html>
+
+<!-- ── PRO: Login screen ── -->
+<div id="login-screen">
+  <div class="login-logo">✦ Shayntech Excel AI</div>
+  <div class="login-tagline">Pro — Powered by Qwen AI</div>
+  <div class="login-box">
+    <div class="login-tab-row">
+      <button class="login-tab active" id="ltab-login" onclick="switchLoginTab('login')">Sign In</button>
+      <button class="login-tab" id="ltab-register" onclick="switchLoginTab('register')">Create Account</button>
+    </div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <div id="login-confirm-row" class="login-field" style="display:none;">
+      <label>Confirm Password</label>
+      <input type="password" id="login-confirm" placeholder="••••••••"/>
+    </div>
+    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── PRO: Upgrade modal ── -->
+<div id="upgrad
