@@ -3,17 +3,12 @@ cd /home/runner/workspace/backend
 npm install --silent
 
 echo "Cleaning null bytes from JS files..."
-for f in server.js routes/auth.js routes/chat.js routes/webhook.js routes/admin.js lib/supabase.js; do
-  if [ -f "$f" ]; then
-    python3 -c "
-import sys
-data = open('$f','rb').read()
-cleaned = data.replace(b'\x00',b'')
-open('$f','wb').write(cleaned)
-print('$f: removed',len(data)-len(cleaned),'null bytes')
+node -e "
+var fs=require('fs');
+['server.js','routes/auth.js','routes/chat.js','routes/webhook.js','routes/admin.js','lib/supabase.js'].forEach(function(f){
+  try{var b=fs.readFileSync(f);var c=Buffer.from(b.filter(function(x){return x!==0;}));if(c.length!==b.length){fs.writeFileSync(f,c);console.log(f+': removed '+(b.length-c.length)+' null bytes');}}catch(e){}
+});
 "
-  fi
-done
 
 echo "Starting server..."
 node server.js
