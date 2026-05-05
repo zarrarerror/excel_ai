@@ -29,7 +29,7 @@ app.use('/api/chat', chatRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', version: '1.0.0', service: 'Shayntech Excel AI Pro' });
+  res.json({ status: 'ok', version: '2.0.0', service: 'Shayntech Excel AI Pro' });
 });
 
 // Serve the Excel add-in frontend
@@ -46,7 +46,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Shayntech Excel AI Pro backend running on port ${PORT}`);
-  console.log(`   Supabase:     ${process.env.SUPABASE_URL       ? '✓ configured' : '✗ MISSING'}`);
-  console.log(`   OpenAI:       ${process.env.OPENAI_API_KEY     ? '✓ configured' : '✗ MISSING — add OPENAI_API_KEY to Secrets'}`);
-  console.log(`   LemonSqueezy: ${process.env.LEMONSQUEEZY_WEBH
+  var ok = '✓ configured';
+  var missing = '✗ MISSING';
+  console.log('✅ Shayntech Excel AI Pro backend running on port ' + PORT);
+  console.log('   Supabase:     ' + (process.env.SUPABASE_URL            ? ok : missing));
+  console.log('   OpenAI:       ' + (process.env.OPENAI_API_KEY          ? ok : missing + ' — add OPENAI_API_KEY to Secrets'));
+  console.log('   LemonS
