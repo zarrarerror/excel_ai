@@ -10,5 +10,6 @@ var fs=require('fs');
 });
 "
 
+pkill -f "node server.js" 2>/dev/null; sleep 1
 echo "Starting server..."
 node server.js
