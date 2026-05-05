@@ -57,4 +57,4 @@ router.get('/me', async (req, res) => {
   res.json({ email: user.email, id: user.id, is_pro: false, lifetime_usage: used, free_limit: freeLimit, remaining: Math.max(0, freeLimit - used), checkout_url: process.env.LEMONSQUEEZY_CHECKOUT_URL });
 });
 
-module.exports = router;
+// POST /api/auth/forgot-
