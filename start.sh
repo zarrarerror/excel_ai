@@ -2,11 +2,16 @@
 cd /home/runner/workspace/backend
 npm install --silent
 
-# Strip null bytes injected by Replit's git checkout (affects all .js files)
 echo "Cleaning null bytes from JS files..."
-for f in server.js routes/auth.js routes/chat.js routes/webhook.js lib/supabase.js; do
+for f in server.js routes/auth.js routes/chat.js routes/webhook.js routes/admin.js lib/supabase.js; do
   if [ -f "$f" ]; then
-    tr -d '\0' < "$f" > "${f}.clean" && mv "${f}.clean" "$f"
+    python3 -c "
+import sys
+data = open('$f','rb').read()
+cleaned = data.replace(b'\x00',b'')
+open('$f','wb').write(cleaned)
+print('$f: removed',len(data)-len(cleaned),'null bytes')
+"
   fi
 done
 

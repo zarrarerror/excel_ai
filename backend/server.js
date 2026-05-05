@@ -2,50 +2,29 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Project root is one level up from backend/
 const ROOT = path.join(__dirname, '..');
 
-app.use(cors({
-  origin: function(origin, callback) {
-    return callback(null, true);
-  },
-  credentials: true
-}));
-
-// Webhook route must come BEFORE express.json() (needs raw body)
-const webhookRouter = require('./routes/webhook');
-app.use('/api/webhook', webhookRouter);
-
-// JSON middleware for all other routes
+app.use(cors({ origin: function(o, cb) { cb(null, true); }, credentials: true }));
+app.use('/api/webhook', require('./routes/webhook'));
 app.use(express.json({ limit: '2mb' }));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/admin', require('./routes/admin'));
 
-// API Routes
-const authRouter = require('./routes/auth');
-const chatRouter = require('./routes/chat');
-const supabase    = require('./lib/supabase');
+app.get('/api/health', function(req, res) { res.json({ status: 'ok', version: '2.1.0', service: 'Shayntech Excel AI Pro' }); });
+app.get('/admin', function(req, res) { res.sendFile(path.join(ROOT, 'admin', 'index.html')); });
+app.get('/', function(req, res) { res.sendFile(path.join(ROOT, 'taskpane.html')); });
+app.get('/taskpane.html', function(req, res) { res.sendFile(path.join(ROOT, 'taskpane.html')); });
+app.get('/manifest.xml', function(req, res) { res.sendFile(path.join(ROOT, 'manifest.xml')); });
+app.get('/index.html', function(req, res) { res.sendFile(path.join(ROOT, 'index.html')); });
+app.use(function(err, req, res, next) { res.status(500).json({ error: 'Internal server error.' }); });
 
-app.use('/api/auth', authRouter);
-app.use('/api/chat', chatRouter);
-
-// Health check
-app.get('/api/health', function(req, res) {
-  res.json({ status: 'ok', version: '2.0.0', service: 'Shayntech Excel AI Pro' });
+app.listen(PORT, '0.0.0.0', function() {
+  var ok = 'OK', no = 'MISSING';
+  console.log('Shayntech Excel AI Pro v2.1 running on port ' + PORT);
+  console.log('Supabase: ' + (process.env.SUPABASE_URL ? ok : no));
+  console.log('OpenAI:   ' + (process.env.OPENAI_API_KEY ? ok : no));
+  console.log('Admin:    ' + (process.env.ADMIN_SECRET ? ok : no + ' (set ADMIN_SECRET to enable /admin)'));
 });
-
-// ── Admin API — secured by ADMIN_SECRET env var ──────────────────────
-app.get('/api/admin/stats', async function(req, res) {
-  var adminKey = process.env.ADMIN_SECRET;
-  if (!adminKey) return res.status(503).json({ error: 'Admin not configured. Set ADMIN_SECRET secret.' });
-  if (req.headers['x-admin-key'] !== adminKey)
-    return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    var { data, error } = await supabase.from('user_stats').select('*');
-    if (error) throw error;
-    res.json({ users: data });
-  } catch (err) {
-    console.error('[admin] stats error:', err.message);
