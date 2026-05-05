@@ -21,31 +21,30 @@ app.use(express.json({ limit: '2mb' }));
 
 const authRouter = require('./routes/auth');
 const chatRouter = require('./routes/chat');
+const supabase   = require('./lib/supabase');
 app.use('/api/auth', authRouter);
 app.use('/api/chat', chatRouter);
 
 app.get('/api/health', function(req, res) {
-  res.json({ status: 'ok', version: '2.0.0', service: 'Shayntech Excel AI Pro' });
+  res.json({ status: 'ok', version: '2.1.0', service: 'Shayntech Excel AI Pro' });
 });
 
+app.get('/api/admin/stats', async function(req, res) {
+  var adminKey = process.env.ADMIN_KEY;
+  if (!adminKey) return res.status(503).json({ error: 'Admin not configured. Set ADMIN_KEY secret.' });
+  if (req.headers['x-admin-key'] !== adminKey)
+    return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    var { data, error } = await supabase.from('user_stats').select('*');
+    if (error) throw error;
+    res.json({ users: data });
+  } catch (err) {
+    console.error('[admin] stats error:', err.message);
+    res.status(500).json({ error: 'Failed to load stats.' });
+  }
+});
+
+app.get('/admin', function(req, res) { res.sendFile(path.join(ROOT, 'admin', 'index.html')); });
 app.get('/', function(req, res) { res.sendFile(path.join(ROOT, 'taskpane.html')); });
 app.get('/taskpane.html', function(req, res) { res.sendFile(path.join(ROOT, 'taskpane.html')); });
-app.get('/manifest.xml', function(req, res) { res.sendFile(path.join(ROOT, 'manifest.xml')); });
-app.get('/index.html', function(req, res) { res.sendFile(path.join(ROOT, 'index.html')); });
-
-app.use(function(err, req, res, next) {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Internal server error.' });
-});
-
-app.listen(PORT, '0.0.0.0', function() {
-  var ok = 'OK';
-  var no = 'MISSING';
-  console.log('Shayntech Excel AI Pro v2.0 running on port ' + PORT);
-  console.log('Supabase:     ' + (process.env.SUPABASE_URL ? ok : no));
-  console.log('OpenAI:       ' + (process.env.OPENAI_API_KEY ? ok : no + ' - add OPENAI_API_KEY to Secrets'));
-  console.log('LemonSqueezy: ' + (process.env.LEMONSQUEEZY_WEBHOOK_SECRET ? ok : no));
-});
-SERVEREOF
-
-node server.js
+app.get('/manifest.xml', function(req, res) {

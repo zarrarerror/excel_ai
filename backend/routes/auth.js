@@ -79,18 +79,13 @@ router.get('/me', async (req, res) => {
     .single();
 
   const freeLimit = parseInt(process.env.FREE_USES_LIMIT || '50');
-  const used = profile?.lifetime_usage || 0;
-  const isPro = profile?.is_pro || false;
+  const proLimit  = parseInt(process.env.PRO_USES_LIMIT  || '1000');
+  const used      = profile?.lifetime_usage || 0;
+  const isPro     = profile?.is_pro || false;
 
-  res.json({
-    email: user.email,
-    id: user.id,
-    is_pro: isPro,
-    lifetime_usage: used,
-    free_limit: freeLimit,
-    remaining: isPro ? null : Math.max(0, freeLimit - used),
-    checkout_url: process.env.LEMONSQUEEZY_CHECKOUT_URL
-  });
-});
+  if (isPro) {
+    const monthlyUsed = profile?.monthly_usage    || 0;
+    const resetAt     = profile?.monthly_reset_at || new Date().toISOString();
 
-module.exports = router;
+    // Next reset = same day next month
+    const

@@ -26,6 +26,7 @@ app.use(express.json({ limit: '2mb' }));
 // API Routes
 const authRouter = require('./routes/auth');
 const chatRouter = require('./routes/chat');
+const supabase    = require('./lib/supabase');
 
 app.use('/api/auth', authRouter);
 app.use('/api/chat', chatRouter);
@@ -35,27 +36,16 @@ app.get('/api/health', function(req, res) {
   res.json({ status: 'ok', version: '2.0.0', service: 'Shayntech Excel AI Pro' });
 });
 
-// Serve frontend files from project root
-app.get('/', function(req, res) {
-  res.sendFile(path.join(ROOT, 'taskpane.html'));
-});
-app.get('/taskpane.html', function(req, res) {
-  res.sendFile(path.join(ROOT, 'taskpane.html'));
-});
-app.get('/manifest.xml', function(req, res) {
-  res.sendFile(path.join(ROOT, 'manifest.xml'));
-});
-app.get('/index.html', function(req, res) {
-  res.sendFile(path.join(ROOT, 'index.html'));
-});
+// ── Admin API — secured by ADMIN_KEY env var ──────────────────────
+app.get('/api/admin/stats', async function(req, res) {
+  var adminKey = process.env.ADMIN_KEY;
+  if (!adminKey) return res.status(503).json({ error: 'Admin not configured. Set ADMIN_KEY secret.' });
+  if (req.headers['x-admin-key'] !== adminKey)
+    return res.status(401).json({ error: 'Unauthorized' });
 
-// Global error handler
-app.use(function(err, req, res, next) {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error.' });
-});
-
-app.listen(PORT, '0.0.0.0', function() {
-  var ok = 'OK';
-  var no = 'MISSING';
-  console.
+  try {
+    var { data, error } = await supabase.from('user_stats').select('*');
+    if (error) throw error;
+    res.json({ users: data });
+  } catch (err) {
+    console.error('[admin] stats error:', err.message);

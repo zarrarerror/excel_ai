@@ -3906,6 +3906,7 @@ RULES
 18. DASHBOARD RULE: After analyzing data, create a "Dashboard" sheet with: (a) a stats summary table, (b) a chart of the most important metric, (c) conditional formatting on key columns. Use save_memory to remember the dashboard sheet name.
 19. DATE COLUMN RULE: If a column expected to contain text month labels (e.g. "Jan 2026") shows as numeric serial dates after read_range, the values were auto-converted by Excel. In this case: (a) first set the column numberFormat to "MMM-YY" using format_range so values display correctly, (b) use SUMIF with TEXT() criteria OR use SUMIFS with date range: =SUMPRODUCT((MONTH(Sheet!G$2:G$21)=1)*(YEAR(Sheet!G$2:G$21)=2026)*Sheet!F$2:F$21). Never use hardcoded serial numbers for SUMIF — always verify with read_range first.
 20. TEXT FORMAT RULE: Before writing month/date labels that should stay as text (like "Jan 2026", "Q1 2026"), first call format_range with numberFormat "@" on that column range to force text storage and prevent Excel auto-conversion.
+21. VALUE WRITE RULE: When the user says "add price X", "add value X", "set rate to X", "put X in column", or "fill column with X" — write X as a LITERAL number value, NOT a formula like =existingCell+X. Only create addition formulas (=cell+X) when the user explicitly says "increase by X", "add X to existing value", or "increment by X".
 
 AGENT MEMORY (from previous sessions):
 ${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
@@ -3919,7 +3920,7 @@ ${workbookText}${fileContent && !fileContent.startsWith('data:image') ? `\n\nATT
   if (isImageAttachment) {
     firstUserMessage = [
       { type: 'text', text: userCommand + '\n\n[Image attached: ' + fileName + ']' },
-      { type: 'image_url', image_url: { url: fileContent, detail: 'high' } }
+      { type: 'image_url', image_url: { url: fileContent, detail: 'low' } }
     ];
   } else {
     firstUserMessage = userCommand;
@@ -5078,13 +5079,4 @@ function isArabicValues(values) {
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
     </div>
     <div id="login-confirm-row" class="login-field" style="display:none;">
-      <label>Confirm Password</label>
-      <input type="password" id="login-confirm" placeholder="••••••••"/>
-    </div>
-    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
-    <div class="login-error" id="login-error"></div>
-  </div>
-</div>
-
-<!-- ── PRO: Upgrade modal ── -->
-<div id="upgrad
+      <label>Conf

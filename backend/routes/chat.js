@@ -193,7 +193,7 @@ router.post('/log', requireAuth, async (req, res) => {
 });
 
 // ── Helpers ──────────────────────────────────────────────────────
-async function callOpenAI(body) {
+async function callOpenAI(body, retryCount = 0) {
   const res = await fetch(OPENAI_URL, {
     method: 'POST',
     headers: {
@@ -207,6 +207,16 @@ async function callOpenAI(body) {
 
   if (!res.ok) {
     console.error('[openai] error:', JSON.stringify(data).slice(0, 300));
+
+    // 429 rate limit — wait and retry up to 3 times
+    if (res.status === 429 && retryCount < 3) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || '12');
+      const waitMs = retryAfter * 1000 || (retryCount + 1) * 12000;
+      console.warn(`[openai] 429 rate limit — waiting ${waitMs}ms then retry ${retryCount + 1}/3`);
+      await new Promise(r => setTimeout(r, waitMs));
+      return callOpenAI(body, retryCount + 1);
+    }
+
     // Tool schema error → signal caller to retry without tools
     if (res.status === 400 && body.tools) {
       data._retryWithoutTools = true;
@@ -239,22 +249,4 @@ async function logTokens(userId, model, inputTokens, outputTokens, costUsd) {
   try {
     await supabase.from('token_logs').insert({
       user_id: userId, model, input_tokens: inputTokens,
-      output_tokens: outputTokens, cost_usd: costUsd
-    });
-  } catch(e) { /* non-fatal */ }
-}
-
-function normalizeToolCalls(data) {
-  try {
-    const msg = data?.choices?.[0]?.message;
-    if (msg?.tool_calls) {
-      msg.tool_calls.forEach(tc => {
-        if (tc.function && typeof tc.function.arguments === 'object') {
-          tc.function.arguments = JSON.stringify(tc.function.arguments);
-        }
-      });
-    }
-  } catch (e) { /* ignore */ }
-}
-
-module.exports = router;
+      ou
