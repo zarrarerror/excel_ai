@@ -25,6 +25,8 @@ padding-type null bytes (content intact — stripping recovers them).
 2. Never use multi-line bash strings in start.sh — use single-quoted single-line `node -e '...'`.
 3. The start.sh null-byte stripper handles padding corruption only; it cannot recover lost content.
 4. After any file grows, check with `wc -c filename` — keep under 1200 bytes.
+5. **HTML files (taskpane.html, admin/index.html, reset-password.html) are too large for git checkout.**
+   start.sh downloads them fresh from GitHub raw on every deploy — do NOT rely on git checkout for HTML.
 
 ## Backend File Structure (excel_ai_pro/)
 ```
@@ -130,6 +132,4 @@ Key rules enforced:
 | `EADDRINUSE port 5000` | Old node process still running | `pkill -f "node server.js"` in start.sh |
 | `python3: command not found` | Replit nodejs-20 has no python3 | Use `node -e "..."` for scripting |
 | 429 gpt-4o TPM limit | 30K tokens/min limit hit | Auto-retry with backoff in callOpenAI() |
-| Usage pill shows 0/1000 | /api/auth/me not returning monthly fields | Fixed in auth.js — returns monthly_usage, remaining, resets_at |
-| `write_range dimension mismatch` | AI guessed wrong range | Pass top-left cell only, let code resize |
-| 400 `function.arguments must be JSON` | Model returned args as object | normalizeToolCalls() in 
+| Usage pill shows 0/1000 | /api/auth/me not returning monthly fields | Fixed in auth.js — returns monthly_usage, remaining, res
