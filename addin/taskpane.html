@@ -4968,9 +4968,17 @@ async function doRegister() {
 
 // ── Forgot password ───────────────────────────────────────────
 function showForgotPassword() {
-  document.getElementById('forgot-view').style.display = 'block';
+  // Hide ALL main login fields so forgot-view is the only thing showing
+  ['login-email','login-password','login-confirm'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentElement) el.parentElement.style.display = 'none';
+  });
+  document.getElementById('login-confirm-row').style.display = 'none';
+  var tabRow = document.querySelector('.login-tab-row');
+  if (tabRow) tabRow.style.display = 'none';
   document.getElementById('login-submit-btn').style.display = 'none';
   document.getElementById('forgot-link').style.display = 'none';
+  document.getElementById('forgot-view').style.display = 'block';
   document.getElementById('forgot-email').value = document.getElementById('login-email').value || '';
   document.getElementById('forgot-error').textContent = '';
   document.getElementById('forgot-success').style.display = 'none';
@@ -4978,6 +4986,13 @@ function showForgotPassword() {
 
 function hideForgotPassword() {
   document.getElementById('forgot-view').style.display = 'none';
+  // Restore main login fields
+  ['login-email','login-password'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentElement) el.parentElement.style.display = '';
+  });
+  var tabRow = document.querySelector('.login-tab-row');
+  if (tabRow) tabRow.style.display = '';
   document.getElementById('login-submit-btn').style.display = 'block';
   document.getElementById('forgot-link').style.display = 'block';
   document.getElementById('forgot-error').textContent = '';
@@ -5137,16 +5152,4 @@ function isArabicValues(values) {
     </div>
     <div class="login-field">
       <label>Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
-    </div>
-    <div id="login-confirm-row" class="login-field" style="display:none;">
-      <label>Confirm Password</label>
-      <input type="password" id="login-confirm" placeholder="••••••••"/>
-    </div>
-    <button class="forgot-link" id="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
-    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
-    <div class="login-error" id="login-error"></div>
-
-    <!-- Forgot password view (hidden by default) -->
-    <div id="forgot-view" style="display:none;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter your email and we'll send
+      <input type="password" id="login-password" placeholder
