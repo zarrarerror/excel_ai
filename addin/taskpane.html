@@ -1302,26 +1302,26 @@ window._appStarted = false;
 function _onBothReady() {
   if (window._appStarted) return;
   window._appStarted = true;
-  loadChatHistory();
   try {
-    if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
+    loadChatHistory();
+    try {
       officeReady = true;
+    } catch(e) { officeReady = true; }
+    setStatus('ready');
+    loadSettings();
+    loadSavedTheme();
+    // PRO: check login
+    var token = storage.getItem('pro_token');
+    if (!token) {
+      showLoginScreen();
     } else {
-      officeReady = true;
+      hideLoginScreen();
+      refreshUsagePill();
     }
   } catch(e) {
-    officeReady = true;
-  }
-  setStatus('ready');
-  loadSettings();
-  loadSavedTheme();
-  // PRO: check login
-  var token = storage.getItem('pro_token');
-  if (!token) {
-    showLoginScreen();
-  } else {
+    // Ensure login screen is never stuck blocking UI
     hideLoginScreen();
-    refreshUsagePill();
+    console.error('_onBothReady error:', e);
   }
 }
 
@@ -5051,4 +5051,102 @@ function logoutPro() {
   addMessage('system', 'Logged out.');
 }
 
-// ── Language toggle ──────────────────────────────────────────
+// ── Language toggle ────────────────────────────────────────────
+var _userLanguage = storage.getItem('lang') || 'en';
+
+function setLanguage(lang) {
+  _userLanguage = lang;
+  storage.setItem('lang', lang);
+  document.getElementById('lang-en').className = 'lang-btn' + (lang === 'en' ? ' active' : '');
+  document.getElementById('lang-ar').className = 'lang-btn' + (lang === 'ar' ? ' active' : '');
+}
+
+// Init toggle state on load
+(function() {
+  var saved = storage.getItem('lang') || 'en';
+  setLanguage(saved);
+})();
+
+// ── Arabic language support ────────────────────────────────────
+// Detect if text contains Arabic characters
+function containsArabic(text) {
+  return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text);
+}
+
+// Auto-apply RTL alignment when writing Arabic content to cells
+var _origWriteRange = null;
+// Patched inside executeTool after write_range to check for Arabic values
+// The system prompt handles language direction instructions
+
+// Patch: after write_range with Arabic values, auto-format RTL
+function isArabicValues(values) {
+  if (!Array.isArray(values)) return false;
+  for (var r = 0; r < values.length; r++) {
+    for (var c = 0; c < values[r].length; c++) {
+      if (containsArabic(String(values[r][c] || ''))) return true;
+    }
+  }
+  return false;
+}
+</script>
+
+<!-- Template Library Modal — direct body child to avoid WebView2 hit-area issues -->
+<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
+  <div class="tpl-modal">
+    <div class="tpl-header">
+      <span class="tpl-title">📋 Template Library</span>
+      <button class="tpl-close" onclick="closeTemplates()">✕</button>
+    </div>
+    <div class="tpl-cats" id="tpl-cats">
+      <div class="tpl-cat active" data-cat="all">All</div>
+      <div class="tpl-cat" data-cat="finance">Finance</div>
+      <div class="tpl-cat" data-cat="project">Project</div>
+      <div class="tpl-cat" data-cat="sales">Sales</div>
+      <div class="tpl-cat" data-cat="hr">HR</div>
+      <div class="tpl-cat" data-cat="operations">Operations</div>
+    </div>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <div class="tpl-inserting" id="tpl-inserting">
+      <span>⚡</span> <span>Inserting template...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRO: Login screen ── -->
+<div id="login-screen" class="hidden">
+  <div class="login-logo">✦ Shayntech Excel AI</div>
+  <div class="login-tagline">Pro — Powered by Qwen AI</div>
+  <div class="login-box">
+    <div class="login-tab-row">
+      <button class="login-tab active" id="ltab-login" onclick="switchLoginTab('login')">Sign In</button>
+      <button class="login-tab" id="ltab-register" onclick="switchLoginTab('register')">Create Account</button>
+    </div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <div id="login-confirm-row" class="login-field" style="display:none;">
+      <label>Confirm Password</label>
+      <input type="password" id="login-confirm" placeholder="••••••••"/>
+    </div>
+    <button class="forgot-link" id="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
+    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+
+    <!-- Forgot password view (hidden by default) -->
+    <div id="forgot-view" style="display:none;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter your email and we'll send a reset link.</div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <button class="login-submit" onclick="doForgotPassword()">Send Reset Link</button>
+      <div class="forgot-success" id="forgot-success" style="display:none;">✓ Check your email for a reset link.</div>
+      <div class="login-error" id="forgot-error"></div>
+      <button class="forgot-link" style="text-align:center;display:block;margin-top:8px;" onclick="hideForgotPassword()">← Back to Sign In</button>
+    </div>
+  
