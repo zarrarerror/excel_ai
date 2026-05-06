@@ -4,7 +4,7 @@ modules = ["nodejs-20"]
 [deployment]
 deploymentTarget = "autoscale"
 build = ["bash", "-c", "cd backend && npm install"]
-run = ["bash", "start.sh"]
+run = ["node", "backend/server.js"]
 
 [[ports]]
 localPort = 5000
@@ -29,10 +29,10 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash /home/runner/workspace/start.sh"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && node server.js"
+waitForPort = 5000
