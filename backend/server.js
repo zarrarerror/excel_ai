@@ -16,5 +16,6 @@ app.get('/reset-password',(req,res)=>res.sendFile(path.join(ROOT,'reset-password
 app.get('/taskpane.html',(req,res)=>res.sendFile(path.join(ROOT,'addin','taskpane.html')));
 app.get('/',(req,res)=>res.sendFile(path.join(ROOT,'addin','taskpane.html')));
 app.get('/manifest.xml',(req,res)=>res.sendFile(path.join(ROOT,'manifest.xml')));
+app.use(express.static(path.join(ROOT,'public')));
 app.use((err,req,res,next)=>res.status(500).json({error:'Server error.'}));
 app.listen(PORT,'0.0.0.0',()=>console.log('Shayntech AI Pro v2.1 port '+PORT));
