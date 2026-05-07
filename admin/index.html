@@ -2,70 +2,115 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shayntech Admin</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #0d0f14; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
-.login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-.login-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 16px; padding: 40px; width: 360px; }
-.login-card h1 { font-size: 22px; margin-bottom: 6px; color: #00e5a0; }
-.login-card p { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
-.login-card input { width: 100%; background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 8px; padding: 12px 14px; color: #e2e8f0; font-size: 14px; outline: none; }
-.login-card input:focus { border-color: #00e5a0; }
-button.btn { width: 100%; background: #00e5a0; color: #0a0a12; font-weight: 700; border: none; border-radius: 8px; padding: 13px; font-size: 15px; cursor: pointer; margin-top: 16px; }
-button.btn:hover { background: #00c98a; }
-.err { color: #f87171; font-size: 13px; margin-top: 10px; display: none; }
-#dashboard { display: none; }
-.topbar { background: #1a1a2e; border-bottom: 1px solid #2d2d44; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
-.topbar h1 { font-size: 18px; font-weight: 700; color: #00e5a0; }
-.topbar-right { display: flex; align-items: center; gap: 12px; }
-.topbar-right span { font-size: 12px; color: #64748b; }
-.refresh-btn { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); color: #00e5a0; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
-.refresh-btn:hover { background: rgba(0,229,160,0.2); }
-.logout-btn { background: transparent; border: 1px solid #2d2d44; color: #94a3b8; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
-.logout-btn:hover { border-color: #f87171; color: #f87171; }
-.stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; padding: 22px 28px 0; }
-.stat-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; padding: 18px 20px; }
-.stat-card .lbl { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-.stat-card .val { font-size: 26px; font-weight: 700; color: #e2e8f0; }
-.stat-card .val.green  { color: #00e5a0; }
-.stat-card .val.amber  { color: #f59e0b; }
-.stat-card .val.blue   { color: #60a5fa; }
-.stat-card .val.purple { color: #a78bfa; }
-.stat-card .sub { font-size: 11px; color: #64748b; margin-top: 4px; }
-.tabs-bar { display: flex; padding: 20px 28px 0; border-bottom: 1px solid #2d2d44; }
-.tab { padding: 10px 22px; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.tab.active { color: #00e5a0; border-bottom-color: #00e5a0; }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-.table-wrap { margin: 20px 28px; background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; overflow: auto; }
-.table-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d2d44; flex-wrap: wrap; gap: 10px; }
-.table-header h2 { font-size: 14px; font-weight: 600; }
-.table-header input { background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 6px; padding: 7px 12px; color: #e2e8f0; font-size: 13px; outline: none; width: 180px; }
-.filter-row { display: flex; gap: 8px; align-items: center; }
-.filter-row select { background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 6px; padding: 7px 10px; color: #e2e8f0; font-size: 13px; outline: none; cursor: pointer; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
-th { background: #131320; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; padding: 11px 16px; text-align: left; white-space: nowrap; }
-td { padding: 11px 16px; border-top: 1px solid #1a1a2c; white-space: nowrap; }
-tr:hover td { background: rgba(255,255,255,0.025); }
-.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge.pro  { background: rgba(0,229,160,0.12); color: #00e5a0; border: 1px solid rgba(0,229,160,0.25); }
-.badge.free { background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid rgba(100,116,139,0.25); }
-.loading { text-align: center; padding: 40px; color: #64748b; font-size: 14px; }
-.tok-in  { color: #60a5fa; font-weight: 600; }
-.tok-out { color: #a78bfa; font-weight: 600; }
-.tok-tot { color: #e2e8f0; font-weight: 700; }
-.cost-cell { color: #f59e0b; font-weight: 600; font-family: monospace; font-size: 12px; }
-.model-tag { display: inline-block; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.2); color: #60a5fa; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
-.time-cell { color: #64748b; font-size: 12px; }
-.tok-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; min-width: 80px; gap: 1px; }
-.tok-bar .bar-in  { background: #3b82f6; }
-.tok-bar .bar-out { background: #8b5cf6; }
-.legend { display: flex; gap: 16px; align-items: center; padding: 10px 18px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
-.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-.tfoot-row td { background: #131320; font-weight: 700; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0f14;color:#e2e8f0;
+  font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+.login-wrap{display:flex;align-items:center;
+  justify-content:center;min-height:100vh}
+.login-card{background:#1a1a2e;border:1px solid #2d2d44;
+  border-radius:16px;padding:40px;width:360px}
+.login-card h1{font-size:22px;margin-bottom:6px;color:#00e5a0}
+.login-card p{font-size:13px;color:#94a3b8;margin-bottom:28px}
+.login-card input{width:100%;background:#0f0f1a;
+  border:1px solid #2d2d44;border-radius:8px;
+  padding:12px 14px;color:#e2e8f0;font-size:14px;outline:none}
+.login-card input:focus{border-color:#00e5a0}
+.btn{width:100%;background:#00e5a0;color:#0a0a12;font-weight:700;
+  border:none;border-radius:8px;padding:13px;
+  font-size:15px;cursor:pointer;margin-top:16px}
+.btn:hover{background:#00c98a}
+.err{color:#f87171;font-size:13px;margin-top:10px;display:none}
+#dashboard{display:none}
+.topbar{background:#1a1a2e;border-bottom:1px solid #2d2d44;
+  padding:14px 28px;display:flex;align-items:center;
+  justify-content:space-between}
+.topbar h1{font-size:18px;font-weight:700;color:#00e5a0}
+.topbar-r{display:flex;align-items:center;gap:12px}
+.topbar-r span{font-size:12px;color:#64748b}
+.rbtn{background:rgba(0,229,160,0.1);
+  border:1px solid rgba(0,229,160,0.3);
+  color:#00e5a0;border-radius:6px;
+  padding:7px 14px;cursor:pointer;font-size:13px}
+.rbtn:hover{background:rgba(0,229,160,0.2)}
+.lbtn{background:transparent;border:1px solid #2d2d44;
+  color:#94a3b8;border-radius:6px;
+  padding:7px 14px;cursor:pointer;font-size:13px}
+.lbtn:hover{border-color:#f87171;color:#f87171}
+.stats-row{display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:14px;padding:22px 28px 0}
+.sc{background:#1a1a2e;border:1px solid #2d2d44;
+  border-radius:12px;padding:18px 20px}
+.sc .lb{font-size:11px;color:#64748b;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.sc .vl{font-size:26px;font-weight:700;color:#e2e8f0}
+.sc .vl.green{color:#00e5a0}
+.sc .vl.amber{color:#f59e0b}
+.sc .vl.blue{color:#60a5fa}
+.sc .vl.purple{color:#a78bfa}
+.sc .sb{font-size:11px;color:#64748b;margin-top:4px}
+.tabs-bar{display:flex;padding:20px 28px 0;
+  border-bottom:1px solid #2d2d44;margin-top:20px}
+.tab{padding:10px 22px;font-size:13px;font-weight:600;
+  color:#64748b;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:#00e5a0;border-bottom-color:#00e5a0}
+.tp{display:none}
+.tp.active{display:block}
+.tw{margin:20px 28px;background:#1a1a2e;
+  border:1px solid #2d2d44;border-radius:12px;overflow:auto}
+.th{padding:14px 18px;display:flex;align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid #2d2d44;flex-wrap:wrap;gap:10px}
+.th h2{font-size:14px;font-weight:600}
+.th input{background:#0f0f1a;border:1px solid #2d2d44;
+  border-radius:6px;padding:7px 12px;
+  color:#e2e8f0;font-size:13px;outline:none;width:180px}
+.fr{display:flex;gap:8px;align-items:center}
+.fr select{background:#0f0f1a;border:1px solid #2d2d44;
+  border-radius:6px;padding:7px 10px;
+  color:#e2e8f0;font-size:13px;outline:none;cursor:pointer}
+table{width:100%;border-collapse:collapse;
+  font-size:13px;min-width:600px}
+th{background:#131320;color:#64748b;font-weight:600;
+  text-transform:uppercase;font-size:10.5px;
+  letter-spacing:.05em;padding:11px 16px;
+  text-align:left;white-space:nowrap}
+td{padding:11px 16px;border-top:1px solid #1a1a2c;
+  white-space:nowrap}
+tr:hover td{background:rgba(255,255,255,.025)}
+.badge{display:inline-block;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:600}
+.badge.pro{background:rgba(0,229,160,.12);color:#00e5a0;
+  border:1px solid rgba(0,229,160,.25)}
+.badge.free{background:rgba(100,116,139,.12);color:#94a3b8;
+  border:1px solid rgba(100,116,139,.25)}
+.loading{text-align:center;padding:40px;
+  color:#64748b;font-size:14px}
+.ti{color:#60a5fa;font-weight:600}
+.to{color:#a78bfa;font-weight:600}
+.tt{color:#e2e8f0;font-weight:700}
+.cc{color:#f59e0b;font-weight:600;
+  font-family:monospace;font-size:12px}
+.mt{display:inline-block;
+  background:rgba(96,165,250,.1);
+  border:1px solid rgba(96,165,250,.2);
+  color:#60a5fa;border-radius:4px;
+  padding:2px 8px;font-size:11px}
+.tc{color:#64748b;font-size:12px}
+.tb{display:flex;height:6px;border-radius:3px;
+  overflow:hidden;min-width:80px;gap:1px}
+.tb .bi{background:#3b82f6}
+.tb .bo{background:#8b5cf6}
+.leg{display:flex;gap:16px;align-items:center;
+  padding:10px 18px}
+.li{display:flex;align-items:center;
+  gap:6px;font-size:12px;color:#94a3b8}
+.ld{width:10px;height:10px;border-radius:2px}
+.tr-foot td{background:#131320;font-weight:700}
 </style>
 </head>
 <body>
@@ -74,8 +119,8 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   <div class="login-card">
     <h1>&#10022; Shayntech Admin</h1>
     <p>Enter your admin key to access the dashboard</p>
-    <input type="password" id="admin-key-input" placeholder="Admin key" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn" onclick="doLogin()">Sign In</button>
+    <input type="password" id="akey" placeholder="Admin key">
+    <button class="btn" id="signin-btn">Sign In</button>
     <div class="err" id="login-err">Incorrect admin key</div>
   </div>
 </div>
@@ -83,47 +128,118 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 <div id="dashboard">
   <div class="topbar">
     <h1>&#10022; Shayntech Admin</h1>
-    <div class="topbar-right">
+    <div class="topbar-r">
       <span id="last-refresh">-</span>
-      <button class="refresh-btn" onclick="loadAll()">Refresh</button>
-      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+      <button class="rbtn" id="refresh-btn">Refresh</button>
+      <button class="lbtn" id="logout-btn">Sign Out</button>
     </div>
   </div>
 
   <div class="stats-row">
-    <div class="stat-card"><div class="lbl">Total Users</div><div class="val" id="s-total">-</div><div class="sub">registered</div></div>
-    <div class="stat-card"><div class="lbl">Pro Users</div><div class="val green" id="s-pro">-</div><div class="sub">paid subscribers</div></div>
-    <div class="stat-card"><div class="lbl">Total AI Cost</div><div class="val amber" id="s-cost">-</div><div class="sub" id="s-avg">all time</div></div>
-    <div class="stat-card"><div class="lbl">Total Chats</div><div class="val" id="s-chats">-</div><div class="sub">sessions</div></div>
-    <div class="stat-card"><div class="lbl">Input Tokens</div><div class="val blue" id="s-input">-</div><div class="sub">prompt tokens</div></div>
-    <div class="stat-card"><div class="lbl">Output Tokens</div><div class="val purple" id="s-output">-</div><div class="sub">completion tokens</div></div>
-  </div>
-
-  <div class="tabs-bar" style="margin-top:20px;">
-    <div class="tab active" id="tab-btn-users" onclick="switchTab('users')">Users</div>
-    <div class="tab" id="tab-btn-tokens" onclick="switchTab('tokens')">Query Token Logs</div>
-  </div>
-
-  <div class="tab-panel active" id="tab-users">
-    <div class="table-wrap">
-      <div class="table-header">
-        <h2>Users</h2>
-        <input type="text" placeholder="Filter by email..." oninput="filterUsers(this.value)">
-      </div>
-      <div id="users-body"><div class="loading">Loading...</div></div>
+    <div class="sc">
+      <div class="lb">Total Users</div>
+      <div class="vl" id="s-total">-</div>
+      <div class="sb">registered</div>
+    </div>
+    <div class="sc">
+      <div class="lb">Pro Users</div>
+      <div class="vl green" id="s-pro">-</div>
+      <div class="sb">paid subscribers</div>
+    </div>
+    <div class="sc">
+      <div class="lb">Total AI Cost</div>
+      <div class="vl amber" id="s-cost">-</div>
+      <div class="sb" id="s-avg">all time</div>
+    </div>
+    <div class="sc">
+      <div class="lb">Total Chats</div>
+      <div class="vl" id="s-chats">-</div>
+      <div class="sb">sessions</div>
+    </div>
+    <div class="sc">
+      <div class="lb">Input Tokens</div>
+      <div class="vl blue" id="s-input">-</div>
+      <div class="sb">prompt tokens</div>
+    </div>
+    <div class="sc">
+      <div class="lb">Output Tokens</div>
+      <div class="vl purple" id="s-output">-</div>
+      <div class="sb">completion tokens</div>
     </div>
   </div>
 
-  <div class="tab-panel" id="tab-tokens">
-    <div class="table-wrap">
-      <div class="table-header">
+  <div class="tabs-bar">
+    <div class="tab active" id="tab-u">Users</div>
+    <div class="tab" id="tab-t">Query Token Logs</div>
+  </div>
+
+  <div class="tp active" id="panel-u">
+    <div class="tw">
+      <div class="th">
+        <h2>Users</h2>
+        <input type="text" id="u-filter" placeholder="Filter by email...">
+      </div>
+      <div id="users-body">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tp" id="panel-t">
+    <div class="tw">
+      <div class="th">
         <h2>Query Token Breakdown</h2>
-        <div class="filter-row">
-          <input type="text" id="tok-email" placeholder="Filter by email..." oninput="filterTokens()" style="width:180px;">
-          <select id="tok-model" onchange="filterTokens()">
+        <div class="fr">
+          <input type="text" id="t-email"
+            placeholder="Filter by email..." style="width:180px">
+          <select id="t-model">
             <option value="">All models</option>
           </select>
         </div>
       </div>
-      <div class="legend">
-        <div class="legend-item"><div class="le
+      <div class="leg">
+        <div class="li">
+          <div class="ld" style="background:#3b82f6"></div>
+          Input (prompt)
+        </div>
+        <div class="li">
+          <div class="ld" style="background:#8b5cf6"></div>
+          Output (completion)
+        </div>
+      </div>
+      <div id="tokens-body">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var AKEY = '';
+var AU = [];
+var AT = [];
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/\x3C/g, '&lt;')
+    .replace(/\x3E/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fnum(n) {
+  n = parseInt(n) || 0;
+  if (n >= 1000000) return (n/1000000).toFixed(2)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'K';
+  return String(n);
+}
+
+function ftime(iso) {
+  var d = new Date(iso);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+    + ' ' + d.toLocaleTimeString('en-US',
+      {hour:'2-digit',minute:'2-digit'});
+}
+
+function switchTab(name) {
+  document
