@@ -1,20 +1,33 @@
 const express = require('express');
 const router = express.Router();
-const supabase = require('../lib/supabase');
+const sb = require('../lib/supabase');
 
-function authCheck(req, res) {
-  var adminKey = process.env.ADMIN_SECRET;
-  if (!adminKey) { res.status(503).json({ error: 'ADMIN_SECRET not set.' }); return false; }
-  if (req.headers['x-admin-key'] !== adminKey) { res.status(401).json({ error: 'Unauthorized' }); return false; }
+function ok(q, p) {
+  var k = process.env.ADMIN_SECRET;
+  if (!k) {
+    p.status(503).json({ error: 'no secret' });
+    return false;
+  }
+  var h = q.headers['x-admin-key'];
+  if (h !== k) {
+    p.status(401).json({ error: 'unauthorized' });
+    return false;
+  }
   return true;
 }
 
-router.get('/stats', async function(req, res) {
-  if (!authCheck(req, res)) return;
+router.get('/stats', async function(q, p) {
+  if (!ok(q, p)) return;
   try {
-    var result = await supabase.from('user_stats').select('*');
-    if (result.error) throw result.error;
-    res.json({ users: result.data });
-  } catch (err) {
-    console.error('[admin] stats error:', err.message);
-    res.status(500
+    var r = await sb.from('user_stats').select('*');
+    if (r.error) throw r.error;
+    p.json({ users: r.data });
+  } catch (e) {
+    p.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/tokens', async function(q, p) {
+  if (!ok(q, p)) return;
+  try {
+    var s
