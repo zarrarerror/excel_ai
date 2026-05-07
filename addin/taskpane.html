@@ -1167,6 +1167,9 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
       <button class="save-btn" id="save-settings-btn">💾 Save Settings</button>
       <button class="test-btn" id="test-conn-btn">🔌 Test Connection</button>
     </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="save-btn" style="background:var(--border);color:var(--text-secondary);" onclick="logoutPro()">Sign Out</button>
+    </div>
 
   </div>
 </div>
@@ -4145,7 +4148,7 @@ ${workbookText}${fileContent && !fileContent.startsWith('data:image') ? `\n\nATT
           user_message:  String(userCommand || '').slice(0, 2000),
           ai_response:   String(_sessionFinalResponse || '').slice(0, 4000),
           tools_called:  _sessionToolCalls,
-          model:         'gpt-4o-mini',
+          model:         'gpt-4o',
           session_id:    'session_' + Date.now()
         })
       }).catch(function(){});  // non-fatal — ignore errors silently
@@ -5171,9 +5174,3 @@ function isArabicValues(values) {
       <button class="login-submit" onclick="doForgotPassword()">Send Reset Link</button>
       <div class="forgot-success" id="forgot-success" style="display:none;">✓ Check your email for a reset link.</div>
       <div class="login-error" id="forgot-error"></div>
-      <button class="forgot-link" style="text-align:center;display:block;margin-top:8px;" onclick="hideForgotPassword()">← Back to Sign In</button>
-    </div>
-  </div>
-</div>
-</body>
-</html>
