@@ -792,6 +792,12 @@
   text-align: center; min-height: 16px; }
 .login-spinner { text-align: center; color: var(--muted); font-size: 12px;
   margin-top: 8px; }
+.forgot-link { display: block; text-align: right; font-size: 11px;
+  color: var(--accent); cursor: pointer; margin-top: -4px; margin-bottom: 8px;
+  background: none; border: none; padding: 0; text-decoration: underline; }
+.forgot-link:hover { opacity: 0.75; }
+.forgot-success { color: #22c55e; font-size: 11px; margin-top: 8px;
+  text-align: center; }
 
 /* ── PRO: Usage counter in toolbar ── */
 #usage-pill {
@@ -1296,26 +1302,36 @@ window._appStarted = false;
 function _onBothReady() {
   if (window._appStarted) return;
   window._appStarted = true;
-  loadChatHistory();
   try {
-    if (_officeInfo && _officeInfo.host === Office.HostType.Excel) {
+    loadChatHistory();
+    try {
       officeReady = true;
+    } catch(e) { officeReady = true; }
+    setStatus('ready');
+    loadSettings();
+    loadSavedTheme();
+    // PRO: check login
+    // Detect Supabase error hash (e.g. expired reset link redirected here)
+    var hashParams = {};
+    window.location.hash.substring(1).split('&').forEach(function(p) {
+      var kv = p.split('='); if (kv[0]) hashParams[kv[0]] = decodeURIComponent(kv[1] || '');
+    });
+    if (hashParams.error_code === 'otp_expired') {
+      history.replaceState(null, '', window.location.pathname);
+      showLoginScreen();
+      setTimeout(function() {
+        var e = document.getElementById('login-error');
+        if (e) e.textContent = 'Reset link has expired. Please use "Forgot password?" to get a new one.';
+      }, 100);
     } else {
-      officeReady = true;
+      var token = storage.getItem('pro_token');
+      if (!token) { showLoginScreen(); }
+      else { hideLoginScreen(); refreshUsagePill(); }
     }
   } catch(e) {
-    officeReady = true;
-  }
-  setStatus('ready');
-  loadSettings();
-  loadSavedTheme();
-  // PRO: check login
-  var token = storage.getItem('pro_token');
-  if (!token) {
-    showLoginScreen();
-  } else {
+    // Ensure login screen is never stuck blocking UI
     hideLoginScreen();
-    refreshUsagePill();
+    console.error('_onBothReady error:', e);
   }
 }
 
@@ -3862,6 +3878,15 @@ COLOR PALETTE (use consistently):
 • Alternate row: #EBF3FB (very light blue)
 
 ═══════════════════════════════════════
+CONTEXT AWARENESS (READ THIS FIRST)
+═══════════════════════════════════════
+The CURRENT WORKBOOK section at the bottom of this prompt already contains a full snapshot of all sheets, cell values, and formulas. Use it to FULLY understand what the user is working on BEFORE calling any tools.
+
+When the user sends a vague or short request (e.g. "add total", "fix this", "make it nice"), look at the CURRENT WORKBOOK data to infer their intent. You can see exactly what columns, rows, and values exist — use that knowledge to understand what they mean without asking for clarification.
+
+ONLY call read_range again if: (a) you need fresh data after a write operation, or (b) you need a specific sub-range not visible in the snapshot.
+
+═══════════════════════════════════════
 CRITICAL: READ-FIRST RULES (follow ALWAYS, no exceptions)
 ═══════════════════════════════════════
 BEFORE taking ANY write/modify/delete action, you MUST:
@@ -4880,7 +4905,10 @@ function switchLoginTab(tab) {
   document.getElementById('login-confirm-row').style.display = isRegister ? 'block' : 'none';
   document.getElementById('login-submit-btn').textContent = isRegister ? 'Create Account' : 'Sign In';
   document.getElementById('login-submit-btn').onclick = isRegister ? doRegister : doLogin;
+  document.getElementById('login-submit-btn').style.display = 'block';
   document.getElementById('login-error').textContent = '';
+  document.getElementById('forgot-link').style.display = isRegister ? 'none' : 'block';
+  document.getElementById('forgot-view').style.display = 'none';
 }
 
 async function doLogin() {
@@ -4936,6 +4964,54 @@ async function doRegister() {
     errEl.textContent = 'Connection error. Check your internet and try again.';
   }
   btn.textContent = 'Create Account'; btn.disabled = false;
+}
+
+// ── Forgot password ───────────────────────────────────────────
+function showForgotPassword() {
+  // Hide ALL main login fields so forgot-view is the only thing showing
+  ['login-email','login-password','login-confirm'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentElement) el.parentElement.style.display = 'none';
+  });
+  document.getElementById('login-confirm-row').style.display = 'none';
+  var tabRow = document.querySelector('.login-tab-row');
+  if (tabRow) tabRow.style.display = 'none';
+  document.getElementById('login-submit-btn').style.display = 'none';
+  document.getElementById('forgot-link').style.display = 'none';
+  document.getElementById('forgot-view').style.display = 'block';
+  document.getElementById('forgot-email').value = document.getElementById('login-email').value || '';
+  document.getElementById('forgot-error').textContent = '';
+  document.getElementById('forgot-success').style.display = 'none';
+}
+
+function hideForgotPassword() {
+  document.getElementById('forgot-view').style.display = 'none';
+  // Restore main login fields
+  ['login-email','login-password'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentElement) el.parentElement.style.display = '';
+  });
+  var tabRow = document.querySelector('.login-tab-row');
+  if (tabRow) tabRow.style.display = '';
+  document.getElementById('login-submit-btn').style.display = 'block';
+  document.getElementById('forgot-link').style.display = 'block';
+  document.getElementById('forgot-error').textContent = '';
+}
+
+async function doForgotPassword() {
+  var email = document.getElementById('forgot-email').value.trim();
+  var errEl = document.getElementById('forgot-error');
+  var succEl = document.getElementById('forgot-success');
+  if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+  errEl.textContent = ''; succEl.style.display = 'none';
+  try {
+    var res = await fetch(PRO_BACKEND_URL + '/api/auth/forgot-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    if (res.ok) { succEl.style.display = 'block'; }
+    else { var d = await res.json(); errEl.textContent = d.error || 'Failed to send reset email.'; }
+  } catch(e) { errEl.textContent = 'Connection error. Try again.'; }
 }
 
 // ── Usage pill ────────────────────────────────────────────────
@@ -5062,7 +5138,7 @@ function isArabicValues(values) {
 </div>
 
 <!-- ── PRO: Login screen ── -->
-<div id="login-screen">
+<div id="login-screen" class="hidden">
   <div class="login-logo">✦ Shayntech Excel AI</div>
   <div class="login-tagline">Pro — Powered by Qwen AI</div>
   <div class="login-box">
@@ -5079,4 +5155,25 @@ function isArabicValues(values) {
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
     </div>
     <div id="login-confirm-row" class="login-field" style="display:none;">
-      <label>Conf
+      <label>Confirm Password</label>
+      <input type="password" id="login-confirm" placeholder="••••••••"/>
+    </div>
+    <button class="forgot-link" id="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
+    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+    <!-- Forgot password view -->
+    <div id="forgot-view" style="display:none;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter your email and we'll send a reset link.</div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <button class="login-submit" onclick="doForgotPassword()">Send Reset Link</button>
+      <div class="forgot-success" id="forgot-success" style="display:none;">✓ Check your email for a reset link.</div>
+      <div class="login-error" id="forgot-error"></div>
+      <button class="forgot-link" style="text-align:center;display:block;margin-top:8px;" onclick="hideForgotPassword()">← Back to Sign In</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
