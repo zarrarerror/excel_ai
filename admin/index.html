@@ -5,47 +5,87 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shayntech Admin</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0f0f13; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
-  .login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  .login-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 16px; padding: 40px; width: 360px; }
-  .login-card h1 { font-size: 22px; margin-bottom: 6px; color: #00e5a0; }
-  .login-card p { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
-  input { width: 100%; background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 8px; padding: 12px 14px; color: #e2e8f0; font-size: 14px; outline: none; }
-  input:focus { border-color: #00e5a0; }
-  button.btn { width: 100%; background: #00e5a0; color: #0a0a12; font-weight: 700; border: none; border-radius: 8px; padding: 13px; font-size: 15px; cursor: pointer; margin-top: 16px; }
-  button.btn:hover { background: #00c98a; }
-  .err { color: #f87171; font-size: 13px; margin-top: 10px; display: none; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d0f14; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
 
-  /* Dashboard */
-  #dashboard { display: none; }
-  .topbar { background: #1a1a2e; border-bottom: 1px solid #2d2d44; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
-  .topbar h1 { font-size: 18px; color: #00e5a0; }
-  .topbar span { font-size: 13px; color: #94a3b8; }
-  .topbar button { background: transparent; border: 1px solid #2d2d44; color: #94a3b8; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
-  .topbar button:hover { border-color: #f87171; color: #f87171; }
+/* LOGIN */
+.login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 16px; padding: 40px; width: 360px; }
+.login-card h1 { font-size: 22px; margin-bottom: 6px; color: #00e5a0; }
+.login-card p { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
+input { width: 100%; background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 8px; padding: 12px 14px; color: #e2e8f0; font-size: 14px; outline: none; }
+input:focus { border-color: #00e5a0; }
+button.btn { width: 100%; background: #00e5a0; color: #0a0a12; font-weight: 700; border: none; border-radius: 8px; padding: 13px; font-size: 15px; cursor: pointer; margin-top: 16px; }
+button.btn:hover { background: #00c98a; }
+.err { color: #f87171; font-size: 13px; margin-top: 10px; display: none; }
 
-  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px 28px 0; }
-  .stat-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; padding: 20px; }
-  .stat-card .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-  .stat-card .value { font-size: 30px; font-weight: 700; color: #e2e8f0; }
-  .stat-card .value.green { color: #00e5a0; }
-  .stat-card .value.amber { color: #f59e0b; }
+/* DASHBOARD */
+#dashboard { display: none; }
+.topbar { background: #1a1a2e; border-bottom: 1px solid #2d2d44; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+.topbar h1 { font-size: 18px; font-weight: 700; color: #00e5a0; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-right span { font-size: 12px; color: #64748b; }
+.refresh-btn { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); color: #00e5a0; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+.refresh-btn:hover { background: rgba(0,229,160,0.2); }
+.logout-btn { background: transparent; border: 1px solid #2d2d44; color: #94a3b8; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+.logout-btn:hover { border-color: #f87171; color: #f87171; }
 
-  .table-wrap { margin: 24px 28px; background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; overflow: auto; }
-  .table-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d2d44; }
-  .table-header h2 { font-size: 15px; font-weight: 600; }
-  .table-header input { background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 6px; padding: 8px 12px; color: #e2e8f0; font-size: 13px; outline: none; width: 200px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: #131320; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .05em; padding: 12px 16px; text-align: left; }
-  td { padding: 12px 16px; border-top: 1px solid #1e1e30; }
-  tr:hover td { background: rgba(255,255,255,0.02); }
-  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-  .badge.pro { background: rgba(0,229,160,0.15); color: #00e5a0; border: 1px solid rgba(0,229,160,0.3); }
-  .badge.free { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
-  .loading { text-align: center; padding: 40px; color: #64748b; font-size: 14px; }
-  .refresh-btn { background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.3); color: #00e5a0; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
-  .refresh-btn:hover { background: rgba(0,229,160,0.2); }
+/* STAT CARDS */
+.stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; padding: 22px 28px 0; }
+.stat-card { background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; padding: 18px 20px; }
+.stat-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.stat-card .value { font-size: 26px; font-weight: 700; color: #e2e8f0; }
+.stat-card .value.green  { color: #00e5a0; }
+.stat-card .value.amber  { color: #f59e0b; }
+.stat-card .value.blue   { color: #60a5fa; }
+.stat-card .value.purple { color: #a78bfa; }
+.stat-card .sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+/* TABS */
+.tabs-bar { display: flex; gap: 0; padding: 20px 28px 0; border-bottom: 1px solid #2d2d44; margin: 0 0 0; }
+.tab { padding: 10px 22px; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab.active { color: #00e5a0; border-bottom-color: #00e5a0; }
+.tab:hover:not(.active) { color: #94a3b8; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* TABLE */
+.table-wrap { margin: 20px 28px; background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; overflow: auto; }
+.table-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d2d44; flex-wrap: wrap; gap: 10px; }
+.table-header h2 { font-size: 14px; font-weight: 600; }
+.table-header input { background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 6px; padding: 7px 12px; color: #e2e8f0; font-size: 13px; outline: none; width: 200px; }
+.table-header input:focus { border-color: #00e5a0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 700px; }
+th { background: #131320; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; padding: 11px 16px; text-align: left; white-space: nowrap; }
+td { padding: 11px 16px; border-top: 1px solid #1a1a2c; white-space: nowrap; }
+tr:hover td { background: rgba(255,255,255,0.025); }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge.pro  { background: rgba(0,229,160,0.12); color: #00e5a0; border: 1px solid rgba(0,229,160,0.25); }
+.badge.free { background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid rgba(100,116,139,0.25); }
+.loading { text-align: center; padding: 40px; color: #64748b; font-size: 14px; }
+
+/* TOKEN DETAIL */
+.tok-in  { color: #60a5fa; font-weight: 600; }
+.tok-out { color: #a78bfa; font-weight: 600; }
+.tok-tot { color: #e2e8f0; font-weight: 700; }
+.cost-cell { color: #f59e0b; font-weight: 600; font-family: monospace; font-size: 12px; }
+.model-tag { display: inline-block; background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.2); color: #60a5fa; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+.time-cell { color: #64748b; font-size: 12px; }
+
+/* TOKEN BAR */
+.tok-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; min-width: 80px; gap: 1px; }
+.tok-bar .in  { background: #3b82f6; }
+.tok-bar .out { background: #8b5cf6; }
+
+/* FILTER ROW */
+.filter-row { display: flex; gap: 8px; align-items: center; }
+.filter-row select { background: #0f0f1a; border: 1px solid #2d2d44; border-radius: 6px; padding: 7px 10px; color: #e2e8f0; font-size: 13px; outline: none; cursor: pointer; }
+.filter-row select:focus { border-color: #00e5a0; }
+
+/* LEGEND */
+.legend { display: flex; gap: 16px; align-items: center; padding: 0 18px 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -53,7 +93,7 @@
 <!-- LOGIN -->
 <div class="login-wrap" id="login-wrap">
   <div class="login-card">
-    <h1>Shayntech Admin</h1>
+    <h1>✦ Shayntech Admin</h1>
     <p>Enter your admin key to access the dashboard</p>
     <input type="password" id="admin-key-input" placeholder="Admin key" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn" onclick="doLogin()">Sign In</button>
@@ -64,113 +104,63 @@
 <!-- DASHBOARD -->
 <div id="dashboard">
   <div class="topbar">
-    <h1>Shayntech Admin</h1>
-    <div style="display:flex;align-items:center;gap:14px;">
+    <h1>✦ Shayntech Admin</h1>
+    <div class="topbar-right">
       <span id="last-refresh">—</span>
-      <button class="refresh-btn" onclick="loadStats()">Refresh</button>
-      <button onclick="doLogout()">Sign Out</button>
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
     </div>
   </div>
 
-  <div class="stats-row" id="stats-row">
-    <div class="stat-card"><div class="label">Total Users</div><div class="value" id="s-total">—</div></div>
-    <div class="stat-card"><div class="label">Pro Users</div><div class="value green" id="s-pro">—</div></div>
-    <div class="stat-card"><div class="label">Total AI Cost</div><div class="value amber" id="s-cost">—</div></div>
-    <div class="stat-card"><div class="label">Total Chats</div><div class="value" id="s-chats">—</div></div>
-  </div>
-
-  <div class="table-wrap">
-    <div class="table-header">
-      <h2>Users</h2>
-      <input type="text" placeholder="Filter by email..." oninput="filterTable(this.value)">
+  <!-- STAT CARDS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Total Users</div>
+      <div class="value" id="s-total">—</div>
+      <div class="sub">registered accounts</div>
     </div>
-    <div id="table-body"><div class="loading">Loading...</div></div>
+    <div class="stat-card">
+      <div class="label">Pro Users</div>
+      <div class="value green" id="s-pro">—</div>
+      <div class="sub">paid subscribers</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total AI Cost</div>
+      <div class="value amber" id="s-cost">—</div>
+      <div class="sub" id="s-cost-sub">all time</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Chats</div>
+      <div class="value" id="s-chats">—</div>
+      <div class="sub">completed sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Input Tokens</div>
+      <div class="value blue" id="s-input">—</div>
+      <div class="sub">prompt tokens sent</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Output Tokens</div>
+      <div class="value purple" id="s-output">—</div>
+      <div class="sub">completion tokens</div>
+    </div>
   </div>
-</div>
 
-<script>
-var ADMIN_KEY = '';
-var allUsers = [];
+  <!-- TABS -->
+  <div class="tabs-bar" style="margin-top:20px; padding-bottom:0;">
+    <div class="tab active" onclick="switchTab('users')">Users</div>
+    <div class="tab" onclick="switchTab('tokens')">Query Token Logs</div>
+  </div>
 
-function doLogin() {
-  var key = document.getElementById('admin-key-input').value.trim();
-  if (!key) return;
-  ADMIN_KEY = key;
-  loadStats();
-}
+  <!-- USERS TAB -->
+  <div class="tab-panel active" id="tab-users">
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Users</h2>
+        <input type="text" placeholder="Filter by email..." oninput="filterUsers(this.value)">
+      </div>
+      <div id="users-body"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
 
-function doLogout() {
-  ADMIN_KEY = '';
-  document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('login-wrap').style.display = 'flex';
-  document.getElementById('admin-key-input').value = '';
-}
-
-async function loadStats() {
-  try {
-    var res = await fetch('/api/admin/stats', {
-      headers: { 'x-admin-key': ADMIN_KEY }
-    });
-    if (res.status === 401) {
-      document.getElementById('login-err').style.display = 'block';
-      return;
-    }
-    document.getElementById('login-err').style.display = 'none';
-    document.getElementById('login-wrap').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
-
-    var data = await res.json();
-    allUsers = data.users || [];
-
-    // Aggregate stats
-    var proCount  = allUsers.filter(u => u.is_pro).length;
-    var totalCost = allUsers.reduce((s, u) => s + parseFloat(u.total_cost_usd || 0), 0);
-    var totalChat = allUsers.reduce((s, u) => s + parseInt(u.total_chat_sessions || 0), 0);
-
-    document.getElementById('s-total').textContent = allUsers.length;
-    document.getElementById('s-pro').textContent   = proCount;
-    document.getElementById('s-cost').textContent  = '$' + totalCost.toFixed(4);
-    document.getElementById('s-chats').textContent = totalChat;
-    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
-
-    renderTable(allUsers);
-  } catch(e) {
-    alert('Failed to load stats: ' + e.message);
-  }
-}
-
-function renderTable(users) {
-  if (!users.length) {
-    document.getElementById('table-body').innerHTML = '<div class="loading">No users found</div>';
-    return;
-  }
-  var rows = users.map(function(u) {
-    var joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-    var badge = u.is_pro
-      ? '<span class="badge pro">PRO</span>'
-      : '<span class="badge free">Free</span>';
-    var cost = parseFloat(u.total_cost_usd || 0).toFixed(4);
-    return '<tr>' +
-      '<td>' + (u.email || '—') + '</td>' +
-      '<td>' + badge + '</td>' +
-      '<td>' + (u.lifetime_usage || 0) + '</td>' +
-      '<td>' + (u.monthly_usage || 0) + '</td>' +
-      '<td>$' + cost + '</td>' +
-      '<td>' + (u.total_chat_sessions || 0) + '</td>' +
-      '<td>' + joined + '</td>' +
-      '</tr>';
-  }).join('');
-  document.getElementById('table-body').innerHTML =
-    '<table><thead><tr>' +
-    '<th>Email</th><th>Plan</th><th>Lifetime Uses</th><th>Monthly Uses</th><th>AI Cost</th><th>Chats</th><th>Joined</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table>';
-}
-
-function filterTable(query) {
-  var q = query.toLowerCase();
-  var filtered = q ? allUsers.filter(u => (u.email||'').toLowerCase().includes(q)) : allUsers;
-  renderTable(filtered);
-}
-</script>
-</body>
-</html>
+  <
