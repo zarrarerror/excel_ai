@@ -87,17 +87,14 @@ CREATE TRIGGER profiles_updated_at
 -- ── profiles ─────────────────────────────────────────────────────
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Users can only read/update their own profile row
+-- Users can only read their own profile; subscription/quota fields are server-managed.
 DROP POLICY IF EXISTS "profiles: user can select own row" ON profiles;
 CREATE POLICY "profiles: user can select own row"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "profiles: user can update own row" ON profiles;
-CREATE POLICY "profiles: user can update own row"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+REVOKE UPDATE ON profiles FROM anon, authenticated;
 
 -- Users cannot insert or delete profile rows (service_role only)
 -- (no INSERT/DELETE policies = blocked for all non-service roles)

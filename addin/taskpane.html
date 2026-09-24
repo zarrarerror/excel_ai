@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="/agent-safety.js"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shayntech Excel AI Pro</title>
@@ -884,11 +885,11 @@
       <span class="msg-label">Shayntech AI</span>
       <div class="msg-bubble">👋 Hello! I'm your AI Agent for Excel.
 
-I can read your entire workbook, understand your data, and take actions — write formulas, format cells, create charts, add sheets, sort data, and more.
+I can inspect workbook ranges and take actions — write formulas, format cells, create charts, add sheets, sort data, and more.
 
 Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do with it.
 
-⚡ Configure your AI provider in Settings first.</div>
+Sign in to use the AI agent. Use the ✓ button to audit selected cells without an AI request.</div>
     </div>
     <div class="typing" id="typing-indicator">
       <span></span><span></span><span></span>
@@ -924,6 +925,7 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
         <button class="icon-btn" id="attach-btn" title="Attach file (PDF, CSV, XLSX)">📎</button>
       </div>
       <textarea id="user-input" placeholder="Ask the agent to do something in Excel..." rows="2"></textarea>
+      <button class="icon-btn" title="Audit selected cells (no AI request)" aria-label="Audit selected cells" onclick="auditSelection()">✓</button>
       <button class="icon-btn" id="undo-btn" title="Undo last write" style="border-color:var(--muted); color:var(--muted);" disabled onclick="applyUndo()">↩</button>
       <button class="icon-btn" id="stop-btn" title="Stop agent" style="display:none; border-color:var(--danger); color:var(--danger);">⏹</button>
       <button class="send-btn" id="send-btn" title="Send">▶</button>
@@ -1187,7 +1189,7 @@ Type a command below, or attach a file (PDF, CSV, XLSX) and tell me what to do w
 
     <div class="settings-title">Capabilities</div>
     <div class="capability-list">
-      <div class="cap-item"><span class="cap-icon">📖</span><span>Reads entire workbook — all sheets, values, formulas, structure</span></div>
+      <div class="cap-item"><span class="cap-icon">📖</span><span>Reads bounded workbook snapshots and specific ranges, with values and formulas</span></div>
       <div class="cap-item"><span class="cap-icon">✍️</span><span>Writes values, sets Excel formulas, pastes data from files</span></div>
       <div class="cap-item"><span class="cap-icon">🎨</span><span>Formats cells — bold, colors, borders, number formats</span></div>
       <div class="cap-item"><span class="cap-icon">📊</span><span>Creates charts (bar, line, column, pie) from data ranges</span></div>
@@ -1222,7 +1224,69 @@ Example commands:<br/>
 <!-- Notification -->
 <div class="notif" id="notif"></div>
 
+
+
+<!-- Template Library Modal — direct body child to avoid WebView2 hit-area issues -->
+<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
+  <div class="tpl-modal">
+    <div class="tpl-header">
+      <span class="tpl-title">📋 Template Library</span>
+      <button class="tpl-close" onclick="closeTemplates()">✕</button>
+    </div>
+    <div class="tpl-cats" id="tpl-cats">
+      <div class="tpl-cat active" data-cat="all">All</div>
+      <div class="tpl-cat" data-cat="finance">Finance</div>
+      <div class="tpl-cat" data-cat="project">Project</div>
+      <div class="tpl-cat" data-cat="sales">Sales</div>
+      <div class="tpl-cat" data-cat="hr">HR</div>
+      <div class="tpl-cat" data-cat="operations">Operations</div>
+    </div>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <div class="tpl-inserting" id="tpl-inserting">
+      <span>⚡</span> <span>Inserting template...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── PRO: Login screen ── -->
+<div id="login-screen" class="hidden">
+  <div class="login-logo">✦ Shayntech Excel AI</div>
+  <div class="login-tagline">Pro — Secure AI workspace</div>
+  <div class="login-box">
+    <div class="login-tab-row">
+      <button class="login-tab active" id="ltab-login" onclick="switchLoginTab('login')">Sign In</button>
+      <button class="login-tab" id="ltab-register" onclick="switchLoginTab('register')">Create Account</button>
+    </div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <div id="login-confirm-row" class="login-field" style="display:none;">
+      <label>Confirm Password</label>
+      <input type="password" id="login-confirm" placeholder="••••••••"/>
+    </div>
+    <button class="forgot-link" id="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
+    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+    <!-- Forgot password view -->
+    <div id="forgot-view" style="display:none;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter your email and we'll send a reset link.</div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"/>
+      </div>
+      <button class="login-submit" onclick="doForgotPassword()">Send Reset Link</button>
+      <div class="forgot-success" id="forgot-success" style="display:none;">✓ Check your email for a reset link.</div>
+      <div class="login-error" id="forgot-error"></div>
+    </div>
+  </div>
+</div>
 <script>
+
 // ═══════════════════════════════════════════════════════════════
 //  SHAYNTECH AI AGENT FOR EXCEL — Full Agent Logic
 //  Supports: OpenRouter, Qwen/DashScope, Ollama
@@ -1249,6 +1313,7 @@ try {
   if (typeof Office !== 'undefined') {
     Office.initialize = function(reason) {
       _officeInitDone = true;
+      if (_domReady) officeReady = typeof Excel !== 'undefined' && Office.context.requirements.isSetSupported('ExcelApi','1.9');
       if (_domReady) _onBothReady();
     };
   } else {
@@ -1281,7 +1346,7 @@ const cfg = {
   ol: { url: 'http://localhost:11434', model: 'llama3.2', key: '' },
   maxIter: 20,
   ctxRows: 500,
-  requireApproval: false
+  requireApproval: true
 };
 
 // ── Storage wrapper (localStorage blocked by tracking prevention in Office iframes) ──
@@ -1308,8 +1373,8 @@ function _onBothReady() {
   try {
     loadChatHistory();
     try {
-      officeReady = true;
-    } catch(e) { officeReady = true; }
+      officeReady = _officeInitDone && typeof Excel !== 'undefined' && Office.context.requirements.isSetSupported('ExcelApi','1.9');
+    } catch(e) { officeReady = false; }
     setStatus('ready');
     loadSettings();
     loadSavedTheme();
@@ -1724,13 +1789,14 @@ inputEl.addEventListener('keydown', (e) => {
 });
 
 sendBtn.addEventListener('click', () => { if (!agentRunning) handleSend(); });
-stopBtn.addEventListener('click', () => { stopRequested = true; });
+stopBtn.addEventListener('click', () => { stopRequested = true; if (activeAIRequest) activeAIRequest.abort(); if (pendingApproval) pendingApproval(false); });
 
 // ── Main send handler ──
 async function handleSend() {
+  if (agentRunning) return;
   const text = inputEl.value.trim();
   if (!text) return;
-  if (!officeReady) { addMessage('error', 'Excel is not ready yet. Please wait a moment.'); return; }
+  if (!officeReady) { addMessage('error', 'Open the add-in in Excel for Windows, Mac or web with ExcelApi 1.9 support. If Excel is loading, try again shortly.'); return; }
 
   // Check settings
   if (!hasValidConfig()) {
@@ -1798,72 +1864,9 @@ function hasValidConfig() {
 // ═══════════════════════════════════════════════════════════════
 //  WORKBOOK READER
 // ═══════════════════════════════════════════════════════════════
-async function readWorkbook() {
-  return new Promise((resolve, reject) => {
-    Excel.run(async (context) => {
-      try {
-        const workbook = context.workbook;
-        const sheets = workbook.worksheets;
-        sheets.load('items/name');
-        await context.sync();
 
-        const result = { sheets: [] };
 
-        for (const sheet of sheets.items) {
-          const usedRange = sheet.getUsedRangeOrNullObject();
-          usedRange.load(['address', 'values', 'formulas', 'rowCount', 'columnCount']);
-          await context.sync();
 
-          if (usedRange.isNullObject) {
-            result.sheets.push({ name: sheet.name, empty: true });
-            continue;
-          }
-
-          const rowCount = Math.min(usedRange.rowCount, cfg.ctxRows);
-          const slicedValues   = usedRange.values.slice(0, rowCount);
-          const slicedFormulas = usedRange.formulas.slice(0, rowCount);
-
-          result.sheets.push({
-            name: sheet.name,
-            address: usedRange.address,
-            rowCount: usedRange.rowCount,
-            columnCount: usedRange.columnCount,
-            truncated: usedRange.rowCount > cfg.ctxRows,
-            values: slicedValues,
-            formulas: slicedFormulas
-          });
-        }
-
-        resolve(result);
-      } catch(e) {
-        reject(e);
-      }
-    }).catch(reject);
-  });
-}
-
-function workbookToText(wb) {
-  let out = `WORKBOOK SNAPSHOT (${wb.sheets.length} sheet(s)):\n\n`;
-  for (const sheet of wb.sheets) {
-    out += `── Sheet: "${sheet.name}" ──\n`;
-    if (sheet.empty) { out += '(empty)\n\n'; continue; }
-    out += `Range: ${sheet.address}, ${sheet.rowCount} rows × ${sheet.columnCount} cols`;
-    if (sheet.truncated) out += ` (showing first ${cfg.ctxRows} rows)`;
-    out += '\n';
-    if (sheet.values && sheet.values.length > 0) {
-      sheet.values.forEach((row, ri) => {
-        // Show formula if cell has one, else the value
-        const cells = row.map((val, ci) => {
-          const f = sheet.formulas[ri][ci];
-          return (typeof f === 'string' && f.startsWith('=')) ? f : String(val ?? '');
-        });
-        out += cells.join('\t') + '\n';
-      });
-    }
-    out += '\n';
-  }
-  return out;
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  EXCEL TOOL EXECUTOR
@@ -1879,40 +1882,16 @@ function saveMemoryKey(key, value) {
   try { storage.setItem('agentMemory', JSON.stringify(agentMemory)); } catch(e) {}
 }
 
-function waitForApproval() {
-  return new Promise(function(resolve) {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;gap:8px;padding:6px 4px;';
-    wrap.innerHTML = '<button id="approve-exec-btn" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">✅ Approve & Execute</button><button id="reject-exec-btn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">❌ Cancel</button>';
-    messagesEl.insertBefore(wrap, typingEl);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    document.getElementById('approve-exec-btn').onclick = function() { wrap.remove(); resolve(true); };
-    document.getElementById('reject-exec-btn').onclick = function() { wrap.remove(); resolve(false); };
-  });
-}
 
-function applyUndo() {
-  if (undoStack.length === 0) {
-    addMessage('system', 'Nothing to undo.');
-    return;
-  }
-  const snap = undoStack.pop();
-  Excel.run(async function(context) {
-    const sheet = context.workbook.worksheets.getItem(snap.sheet);
-    const rng = sheet.getRange(snap.topLeft).getResizedRange(snap.values.length - 1, snap.values[0].length - 1);
-    rng.values = snap.values;
-    await context.sync();
-    addMessage('system', '↩ Undone: restored ' + snap.sheet + '!' + snap.range);
-    updateUndoBtn();
-  }).catch(function(e) { addMessage('error', 'Undo failed: ' + e.message); });
-}
+
+
 
 function updateUndoBtn() {
   const btn = document.getElementById('undo-btn');
   if (btn) btn.disabled = (undoStack.length === 0);
 }
 
-async function executeTool(toolName, args) {
+async function executeLegacyTool(toolName, args) {
   return new Promise((resolve, reject) => {
     Excel.run(async (context) => {
       try {
@@ -2161,7 +2140,7 @@ async function executeTool(toolName, args) {
           if (need(['sheet','rowIndex'])) {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const count = args.count || 1;
-            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).insert(Excel.InsertShiftDirection.down);
+            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).getEntireRow().insert(Excel.InsertShiftDirection.down);
             await context.sync();
             result = `Inserted ${count} row(s) at index ${args.rowIndex} in ${args.sheet}`;
           }
@@ -2171,7 +2150,7 @@ async function executeTool(toolName, args) {
           if (need(['sheet','rowIndex'])) {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const count = args.count || 1;
-            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).delete(Excel.DeleteShiftDirection.up);
+            sheet.getRangeByIndexes(args.rowIndex, 0, count, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
             await context.sync();
             result = `Deleted ${count} row(s) at index ${args.rowIndex} in ${args.sheet}`;
           }
@@ -2181,7 +2160,7 @@ async function executeTool(toolName, args) {
           if (need(['sheet','columnIndex'])) {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const count = args.count || 1;
-            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).insert(Excel.InsertShiftDirection.right);
+            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).getEntireColumn().insert(Excel.InsertShiftDirection.right);
             await context.sync();
             result = `Inserted ${count} column(s) at index ${args.columnIndex} in ${args.sheet}`;
           }
@@ -2191,7 +2170,7 @@ async function executeTool(toolName, args) {
           if (need(['sheet','columnIndex'])) {
             const sheet = context.workbook.worksheets.getItem(args.sheet);
             const count = args.count || 1;
-            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).delete(Excel.DeleteShiftDirection.left);
+            sheet.getRangeByIndexes(0, args.columnIndex, 1, count).getEntireColumn().delete(Excel.DeleteShiftDirection.left);
             await context.sync();
             result = `Deleted ${count} column(s) at index ${args.columnIndex} in ${args.sheet}`;
           }
@@ -2475,7 +2454,7 @@ async function executeTool(toolName, args) {
               for (let i=0; i<count; i++) { fillVals.push([args.custom[i % args.custom.length]]); }
             }
             if (fillVals.length > 0) {
-              sheet.getRange(args.start).getResizedRange(fillVals.length-1, 0).values = fillVals;
+              sheet.getRange(args.start).getResizedRange(fillVals.length-1, 0).values = fillVals.map(row => row.map(AgentSafety.literal));
               await context.sync();
               result = 'Filled ' + fillVals.length + ' cells starting at ' + args.sheet + '!' + args.start;
             } else { result = 'smart_fill: could not generate series for type=' + args.type; }
@@ -2555,7 +2534,7 @@ async function executeTool(toolName, args) {
             rows.push(['📋 Module: ' + moduleLabel]);
             if (desc) rows.push([desc]);
             rows.push(['──────────────────────────────────────────────']);
-            rows.push(['HOW TO USE: Press Alt+F11 → Insert → Module → Paste the code below']);
+            rows.push(['HOW TO USE: Excel desktop Developer → Visual Basic → Insert → Module. On Mac use Tools → Macro → Visual Basic Editor. VBA cannot run on the web.']);
             rows.push(['']);
             lines.forEach(function(line){ rows.push([line]); });
             rows.push(['']);
@@ -2591,7 +2570,7 @@ async function executeTool(toolName, args) {
             vbaSheet.getRange('A:A').format.autofitColumns();
             vbaSheet.activate();
             await context.sync();
-            result = 'VBA macro "' + moduleLabel + '" written to the "' + VBA_SHEET + '" sheet (' + lines.length + ' lines). Switch to that sheet to copy and paste it into the VBA editor (Alt+F11 → Insert → Module).';
+            result = 'VBA macro "' + moduleLabel + '" written to the "' + VBA_SHEET + '" sheet (' + lines.length + ' lines). Switch to that sheet to copy and paste it into the VBA editor (Developer → Visual Basic → Insert → Module; Mac: Tools → Macro → Visual Basic Editor).';
           }
         }
         else {
@@ -2655,13 +2634,14 @@ function normalizeMessages(messages) {
 }
 
 // ── PRO: Backend proxy call ──
-var PRO_BACKEND_URL = 'https://aiexcel.replit.app'; // update after Replit deploy
+var PRO_BACKEND_URL = window.location.origin;
 
 async function callAI(messages, tools) {
   return callProBackend(messages, tools);
 }
 
 async function callProBackend(messages, tools) {
+  if (agentRunning && stopRequested) throw new Error("Stopped by user.");
   var token = storage.getItem('pro_token');
   if (!token) throw new Error('Not logged in. Please log in to continue.');
 
@@ -2685,14 +2665,18 @@ async function callProBackend(messages, tools) {
     body.tool_choice = 'auto';
   }
 
-  var res = await fetch(PRO_BACKEND_URL + '/api/chat', {
+  const controller = new AbortController(); activeAIRequest = controller;
+  const timeout = setTimeout(() => controller.abort(), 120000);
+  var res;
+  try { res = await fetch(PRO_BACKEND_URL + '/api/chat', {
+    signal: controller.signal,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + token
     },
     body: JSON.stringify(body)
-  });
+  }); } finally { clearTimeout(timeout); if (activeAIRequest === controller) activeAIRequest = null; }
 
   if (res.status === 401) {
     storage.setItem('pro_token', '');
@@ -3144,6 +3128,7 @@ async function callOllama(messages, tools) {
 //  TOOL DEFINITIONS (OpenAI function-calling format)
 // ═══════════════════════════════════════════════════════════════
 const TOOL_DEFINITIONS = [
+  { type: 'function', function: { name: 'audit_data_quality', description: 'Read-only exact audit of blanks, duplicates, whitespace and formula errors in a bounded range.', parameters: { type: 'object', properties: { sheet: { type: 'string' }, range: { type: 'string' }, has_header: { type: 'boolean' } }, required: ['sheet', 'range'] } } },
   {
     type: 'function',
     function: {
@@ -3769,392 +3754,7 @@ function clearStatusBar() {
 // ═══════════════════════════════════════════════════════════════
 //  AGENT LOOP
 // ═══════════════════════════════════════════════════════════════
-async function runAgent(userCommand, fileContent, fileName) {
 
-  // 1. Read workbook
-  addMessage('system', '📊 Reading workbook...');
-  let workbookText = '';
-  try {
-    const wb = await readWorkbook();
-    workbookText = workbookToText(wb);
-  } catch(e) {
-    workbookText = '(Could not read workbook: ' + e.message + ')';
-  }
-
-  // 2. Build system prompt
-  const langLabel = _userLanguage === 'ar' ? 'Arabic (العربية)' : 'English';
-  const systemPrompt = `You are an elite Excel AI Agent built by Shayntech. You are a professional data analyst and spreadsheet designer who creates beautiful, publication-quality workbooks.
-
-═══════════════════════════════════════
-AVAILABLE TOOLS
-═══════════════════════════════════════
-LANGUAGE RULES
-═══════════════════════════════════════
-1. The user has selected their preferred language: ${langLabel}. Respond ENTIRELY in that language — all explanations, plan steps, tool call reasoning, and task_complete messages.
-2. Never mix English and Arabic in the same response.
-3. When writing Arabic text into Excel cells via write_range, the values will be RTL — always follow up with format_range using horizontalAlignment:'Right' on those cells.
-4. Arabic column headers should also be Right-aligned.
-
-═══════════════════════════════════════
-DATA:         write_range, read_range, find_replace
-FORMULAS:     set_formula, set_formulas_range
-FORMATTING:   format_range, add_borders, merge_cells, conditional_format, formula_conditional_format
-STRUCTURE:    insert_rows, delete_rows, insert_columns, delete_columns, auto_fit, freeze_panes
-SHEETS:       add_sheet, rename_sheet, delete_sheet, activate_sheet, get_sheet_names
-CHARTS:       create_chart (types: bar, column, line, pie, area, scatter)
-MEMORY:       save_memory, get_memory
-ANALYSIS:     analyze_data, clean_data, highlight_outliers
-VALIDATION:   add_data_validation
-BATCH:        apply_to_all_sheets (operations: auto_fit, freeze_header, format_header, add_borders, clear_content, set_tab_color)
-UTILS:        smart_fill, protect_sheet, unprotect_sheet, sort_range, clear_range, undo_last_action, task_complete
-VBA:          write_vba_to_sheet — ALWAYS use this when creating any VBA macro. NEVER print VBA code as chat text.
-
-═══════════════════════════════════════
-ERROR RECOVERY RULES
-═══════════════════════════════════════
-When a tool returns an ERROR message, you MUST follow these rules:
-1. READ the full error message including any RETRY HINT carefully
-2. NEVER call the same tool with the same arguments again after an error
-3. ALWAYS try the suggested approach from the RETRY HINT
-4. If error says "cell-editing mode" → call activate_sheet first, then retry
-5. If error says "dimension mismatch" → pass only the top-left cell as range (e.g. "A1"), never guess the full range
-6. If error says "not found" → call get_sheet_names to confirm sheet names, then retry
-7. If error says "missing required args" or args were {} → re-read the tool definition and provide ALL required parameters
-8. If a tool fails twice → try a completely different approach to achieve the same result
-9. If conditional_format fails → use formula_conditional_format instead
-10. Maximum 2 retries per operation — if still failing, skip it and explain why in task_complete
-11. format_range specifically: if it fails once, do NOT retry it — skip formatting entirely and call task_complete. The write/data task is already complete; formatting is optional polish.
-
-═══════════════════════════════════════
-PROFESSIONAL FORMATTING STANDARDS
-═══════════════════════════════════════
-FORMATTING RULE: Only apply formatting when (a) explicitly asked by the user, OR (b) you are creating a brand-new report/dashboard/table from scratch.
-Do NOT auto-format when simply updating or writing values into an EXISTING sheet — just complete the write task and call task_complete.
-When formatting IS appropriate, follow these standards:
-
-HEADERS (row 1 or title rows):
-• Bold: true, fontSize: 12
-• fillColor: "#1F3864" (dark navy), color: "#FFFFFF" (white text)
-• horizontalAlignment: "Center"
-• Merge header cells if it's a title spanning multiple columns
-
-DATA ROWS (alternating is ideal):
-• Even rows fillColor: "#EBF3FB" (light blue), Odd rows: no fill
-• Font size 11, normal weight
-
-BORDERS:
-• Always add borders to data tables (style: "Thin")
-• Use "Medium" for outer border of the table
-
-COLUMNS:
-• Always call auto_fit after writing data
-
-FREEZE PANES:
-• Freeze row 1 (header) after writing a table: freeze_panes with rows=1
-
-NUMBERS & CURRENCY:
-• Currency: numberFormat "#,##0.00"
-• Percentages: numberFormat "0.00%"
-• Large numbers: numberFormat "#,##0"
-• Dates: numberFormat "DD/MM/YYYY"
-
-CHARTS (create automatically when data is suitable):
-• Time series data → line chart
-• Category comparisons → column chart
-• Part-of-whole → pie chart
-• Correlation data → scatter chart
-• Place chart at a logical position (targetCell 2 rows below data)
-• Always set a descriptive title
-
-CONDITIONAL FORMATTING (apply proactively):
-• Numeric KPI columns → colorScale to show high/low
-• Sales/revenue → highlight top 10 with green (#C6EFCE)
-• Negative values → highlight with red (#FFC7CE)
-
-COLOR PALETTE (use consistently):
-• Primary header: #1F3864 (dark navy)
-• Secondary header: #2E75B6 (medium blue)
-• Accent: #00B0F0 (light blue)
-• Positive highlight: #C6EFCE (green)
-• Negative highlight: #FFC7CE (pink/red)
-• Neutral: #FFFFCC (yellow)
-• Alternate row: #EBF3FB (very light blue)
-
-═══════════════════════════════════════
-CONTEXT AWARENESS (READ THIS FIRST)
-═══════════════════════════════════════
-The CURRENT WORKBOOK section at the bottom of this prompt already contains a full snapshot of all sheets, cell values, and formulas. Use it to FULLY understand what the user is working on BEFORE calling any tools.
-
-When the user sends a vague or short request (e.g. "add total", "fix this", "make it nice"), look at the CURRENT WORKBOOK data to infer their intent. You can see exactly what columns, rows, and values exist — use that knowledge to understand what they mean without asking for clarification.
-
-ONLY call read_range again if: (a) you need fresh data after a write operation, or (b) you need a specific sub-range not visible in the snapshot.
-
-═══════════════════════════════════════
-CRITICAL: READ-FIRST RULES (follow ALWAYS, no exceptions)
-═══════════════════════════════════════
-BEFORE taking ANY write/modify/delete action, you MUST:
-R1. Call get_sheet_names to confirm all sheet names.
-R2. Call read_range on EVERY relevant sheet to understand the full structure — headers, data layout, occupied rows, column positions.
-R3. Only after you have read and understood the data, begin your actions.
-R4. NEVER assume column positions (A, B, C...) from the snapshot alone — ALWAYS verify with read_range before writing.
-R5. If unsure where data ends, call read_range with a wide range first (e.g. A1:Z100) to see the actual structure.
-R6. NEVER overwrite existing data unless the user explicitly asked to replace or modify it.
-R7. When adding a total/summary row: read_range first to find the EXACT last row with data, then write BELOW it — never guess the row number.
-R8. TOTAL/SUBTOTAL ROW RULE: When the user asks you to add VAT, tax, discount, subtotal, or grand total below an existing "Total" row — you MUST: (a) call read_range on a generous range (e.g. A1:Z100) to find the row that contains the word "Total" or "Total price", (b) identify that row number precisely, (c) write VAT on the NEXT row below total, (d) write Grand Total on the row AFTER that. NEVER write above the existing total row. NEVER skip rows (leave blank rows) between total, VAT and grand total.
-R9. EMPTY CELL RULE: When writing VAT + grand total rows, write them consecutively with NO blank rows between: Total row → VAT row → Grand Total row. Do not insert any empty separator rows.
-
-═══════════════════════════════════════
-RULES
-═══════════════════════════════════════
-1. ALWAYS call task_complete when done with a clear summary.
-0. FILE EXTRACTION RULE (CRITICAL): When the user attaches a file (PDF, CSV, image) and asks to extract data into Excel — you MUST immediately use write_range to write the data into the target sheet. NEVER display the extracted data as a markdown table or list in your response. NEVER describe what you "will write" — just write it using tools. Go straight to get_sheet_names → read_range → write_range.
-0b. VBA RULE (CRITICAL): When the user asks for a VBA macro, Excel macro, or any Visual Basic code — you MUST call write_vba_to_sheet to write the code to the "VBA Code" sheet. NEVER print VBA code in the chat as plain text or in a code block. NEVER give manual copy-paste instructions in the chat. The tool itself tells the user how to open the VBA editor.
-2. Apply professional formatting automatically — do not wait to be asked.
-3. Use exact sheet names from the workbook snapshot below.
-4. write_range values must be 2D array: [["h1","h2"],["v1","v2"]]
-5. Formulas must start with =  e.g. =SUM(A1:A10)
-6. After writing a table: auto_fit columns, add borders, freeze header row.
-7. If data looks like a report → create a chart automatically.
-8. If task fails → try alternative approach, never give up without trying.
-9. Be precise with cell references — you are modifying the user's real data.
-10. PIVOT TABLE TECHNIQUE: Excel JS API has no native pivot. Build pivot summaries like this:
-    a) Use read_range or workbook snapshot to find all unique values in the group column
-    b) Write headers (e.g. ["Region","Total Sales"]) with write_range
-    c) Use set_formulas_range with SUMIF formulas: =SUMIF($A$2:$A$100,D2,$B$2:$B$100)
-    d) Fill actual unique values in the label column first, then add SUMIF formulas
-    e) Format the summary table professionally, then create a chart from it
-    f) NEVER use =SUMIF on an empty label cell — write label values first, formulas second
-11. CHART RULE: Only chart ranges that have actual data. Use read_range to verify values exist before charting.
-12. PLANNING RULE: On the FIRST response of any task, output a brief '📋 Plan:' section as plain text listing your intended steps BEFORE calling any tools. Keep it to 3-5 bullet points.
-13. MEMORY RULE: At the start of complex tasks, call get_memory to check for saved user preferences. Use save_memory to remember sheet names, column layouts, or user preferences for future sessions.
-14. DATA ANALYSIS RULE: When user asks to "analyze", "summarize", or "check" data — always call analyze_data first to get statistics, then write a clean summary table to a new sheet or below the data. Include: row count, column stats (min/max/mean/median/stdev), blank counts, and outlier count.
-15. SMART CHART RULE: Choose chart type based on data: time series → line, category comparison → column/bar, part of whole → pie, two numeric variables → scatter, multiple KPIs over time → area.
-16. AUTO CLEAN RULE: If analyze_data reveals blank cells or text inconsistencies, proactively offer or call clean_data before analysis.
-17. OUTLIER RULE: For financial or numeric datasets, always call highlight_outliers after writing data to flag anomalies automatically.
-18. DASHBOARD RULE: After analyzing data, create a "Dashboard" sheet with: (a) a stats summary table, (b) a chart of the most important metric, (c) conditional formatting on key columns. Use save_memory to remember the dashboard sheet name.
-19. DATE COLUMN RULE: If a column expected to contain text month labels (e.g. "Jan 2026") shows as numeric serial dates after read_range, the values were auto-converted by Excel. In this case: (a) first set the column numberFormat to "MMM-YY" using format_range so values display correctly, (b) use SUMIF with TEXT() criteria OR use SUMIFS with date range: =SUMPRODUCT((MONTH(Sheet!G$2:G$21)=1)*(YEAR(Sheet!G$2:G$21)=2026)*Sheet!F$2:F$21). Never use hardcoded serial numbers for SUMIF — always verify with read_range first.
-20. TEXT FORMAT RULE: Before writing month/date labels that should stay as text (like "Jan 2026", "Q1 2026"), first call format_range with numberFormat "@" on that column range to force text storage and prevent Excel auto-conversion.
-21. VALUE WRITE RULE: When the user says "add price X", "add value X", "set rate to X", "put X in column", or "fill column with X" — write X as a LITERAL number value, NOT a formula like =existingCell+X. Only create addition formulas (=cell+X) when the user explicitly says "increase by X", "add X to existing value", or "increment by X".
-
-AGENT MEMORY (from previous sessions):
-${Object.keys(agentMemory).length > 0 ? Object.entries(agentMemory).map(function(e){return e[0]+': '+e[1];}).join('\n') : '(empty)'}
-
-CURRENT WORKBOOK:
-${workbookText}${fileContent && !fileContent.startsWith('data:image') ? `\n\nATTACHED FILE: ${fileName}\n${'─'.repeat(40)}\n${fileContent.slice(0, 8000)}${fileContent.length > 8000 ? '\n...[truncated]' : ''}` : ''}`;
-
-  // 3. Build first user message — images use vision content block format
-  const isImageAttachment = fileContent && fileContent.startsWith('data:image');
-  let firstUserMessage;
-  if (isImageAttachment) {
-    firstUserMessage = [
-      { type: 'text', text: userCommand + '\n\n[Image attached: ' + fileName + ']' },
-      { type: 'image_url', image_url: { url: fileContent, detail: 'low' } }
-    ];
-  } else {
-    firstUserMessage = userCommand;
-  }
-
-  // 4. Conversation history for this agent run
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user',   content: firstUserMessage }
-  ];
-
-  // 5. Track tool calls made during this session (for chat logging)
-  const _sessionToolCalls = [];
-  let   _sessionFinalResponse = '';
-
-  let iterations = 0;
-  const maxIter = cfg.maxIter;
-
-  // ── Plan Approval Phase ──
-  if (cfg.requireApproval) {
-    addMessage('system', '🤔 Generating plan...');
-    showTyping(true);
-    const planSystemPrompt = `You are a planning assistant for an Excel AI agent. The user will give you a task. Output ONLY a numbered plan (3-6 steps) describing what you will do. Do NOT call any tools. Do NOT start executing. Be concise and specific about which sheets, ranges, and operations you will use.`;
-    const planMessages = [
-      { role: 'system', content: planSystemPrompt },
-      { role: 'user',   content: userCommand + (workbookText ? '\n\nWorkbook context:\n' + workbookText.slice(0, 1500) : '') }
-    ];
-    let planText = '';
-    try {
-      const planMsg = await callAI(planMessages, []);
-      planText = (planMsg && planMsg.content) ? planMsg.content.trim() : 'Ready to execute your request.';
-    } catch(e) {
-      planText = 'Ready to execute your request. (Planning call failed: ' + e.message + ')';
-    }
-    showTyping(false);
-    addMessage('agent', '📋 Plan:\n\n' + planText);
-    const approved = await waitForApproval();
-    if (!approved) {
-      addMessage('system', '⛔ Plan cancelled by user. Nothing was changed.');
-      return;
-    }
-    addMessage('system', '✅ Plan approved — executing...');
-    showTyping(true);
-  }
-
-  showTyping(true);
-
-  // 4. Agent loop
-  while (iterations < maxIter) {
-    if (stopRequested) {
-      addMessage('system', '⏹ Agent stopped by user.');
-      break;
-    }
-
-    iterations++;
-    showTyping(true);
-
-    let assistantMsg;
-    try {
-      assistantMsg = await callAI(messages, TOOL_DEFINITIONS);
-    } catch(e) {
-      addMessage('error', '❌ AI call failed: ' + e.message + '\n\nTip: Check your API key and model in Settings.');
-      break;
-    }
-
-    showTyping(false);
-
-    // Add assistant message to history
-    messages.push(assistantMsg);
-
-    // Check for tool calls
-    const toolCalls = assistantMsg.tool_calls;
-
-    if (!toolCalls || toolCalls.length === 0) {
-      // Pure text response — show it and end
-      const text = assistantMsg.content || '(No response)';
-      if (text.trim()) {
-        addMessage('agent', text);
-        _sessionFinalResponse = text;
-      }
-      break;
-    }
-
-    // Show plan / commentary text BEFORE executing tools
-    if (assistantMsg.content && assistantMsg.content.trim()) {
-      addMessage('agent', assistantMsg.content);
-    }
-
-    // Process each tool call
-    let taskDone = false;
-
-    for (const tc of toolCalls) {
-      if (stopRequested) break;
-
-      const toolName = tc.function.name;
-      let toolArgs = {};
-
-      try {
-        toolArgs = JSON.parse(tc.function.arguments || '{}');
-      } catch(e) {
-        toolArgs = {};
-      }
-
-      // Track tool calls for session log
-      _sessionToolCalls.push(toolName);
-
-      if (toolName === 'task_complete') {
-        const summary = toolArgs.summary || 'Task completed.';
-        _sessionFinalResponse = summary;
-        clearStatusBar();
-        addMessage('agent', '✅ Done!\n\n' + summary);
-        taskDone = true;
-        break;
-      }
-
-      // Show friendly status message instead of raw tool call
-      const _friendlyMsg = {
-        read_range:        '📖 Reading data...',
-        get_sheet_names:   '📋 Getting sheet names...',
-        write_range:       '✏️ Writing data...',
-        set_formula:       '🔢 Setting formula...',
-        set_formulas_range:'🔢 Setting formulas...',
-        format_range:      '🎨 Formatting cells...',
-        add_borders:       '🔲 Adding borders...',
-        merge_cells:       '⬛ Merging cells...',
-        auto_fit:          '↔️ Auto-fitting columns...',
-        freeze_panes:      '🔒 Freezing header...',
-        insert_rows:       '➕ Inserting rows...',
-        delete_rows:       '➖ Deleting rows...',
-        insert_columns:    '➕ Inserting columns...',
-        delete_columns:    '➖ Deleting columns...',
-        create_chart:      '📊 Creating chart...',
-        add_sheet:         '📄 Adding sheet...',
-        rename_sheet:      '✏️ Renaming sheet...',
-        delete_sheet:      '🗑️ Deleting sheet...',
-        activate_sheet:    '👆 Switching sheet...',
-        sort_range:        '🔃 Sorting data...',
-        find_replace:      '🔍 Finding & replacing...',
-        conditional_format:'🎨 Applying conditional format...',
-        formula_conditional_format: '🎨 Applying formula format...',
-        clean_data:        '🧹 Cleaning data...',
-        analyze_data:      '🔬 Analyzing data...',
-        highlight_outliers:'🔴 Highlighting outliers...',
-        add_data_validation:'✅ Adding validation...',
-        protect_sheet:     '🔐 Protecting sheet...',
-        unprotect_sheet:   '🔓 Unprotecting sheet...',
-        smart_fill:        '✨ Smart filling...',
-        clear_range:       '🗑️ Clearing cells...',
-        save_memory:       '💾 Saving preferences...',
-        get_memory:        '🧠 Loading preferences...',
-        apply_to_all_sheets:'📑 Applying to all sheets...',
-        undo_last_action:  '↩️ Undoing last action...',
-        write_vba_to_sheet:'💻 Writing VBA code to sheet...',
-        task_complete:     '✅ Completing task...'
-      };
-      const _statusMsg = _friendlyMsg[toolName] || ('⚙️ ' + toolName.replace(/_/g,' ') + '...');
-      updateStatusBar(_statusMsg);
-
-      let toolResult = '';
-      try {
-        toolResult = await executeTool(toolName, toolArgs);
-      } catch(e) {
-        toolResult = buildErrorHint(toolName, toolArgs, e.message);
-        clearStatusBar();
-      addMessage('error', `Tool ${toolName} failed: ${e.message}`);
-      }
-
-      // Add tool result to conversation
-      // Ensure id and content are always plain strings (Qwen rejects non-string values)
-      const tcId = String(tc.id || tc.function?.name || 'tool_0');
-      const tcContent = typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
-      messages.push({
-        role: 'tool',
-        tool_call_id: tcId,
-        content: tcContent
-      });
-    }
-
-    if (taskDone) break;
-  }
-
-  if (iterations >= maxIter && !stopRequested) {
-    addMessage('system', `⚠️ Agent reached max iterations (${maxIter}). Task may be incomplete. Increase limit in Settings.`);
-  }
-
-  // ── Fire-and-forget: log this session to Supabase ──
-  try {
-    const _token = storage.getItem('pro_token');
-    if (_token && (userCommand || _sessionFinalResponse)) {
-      fetch(PRO_BACKEND_URL + '/api/chat/log', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + _token
-        },
-        body: JSON.stringify({
-          user_message:  String(userCommand || '').slice(0, 2000),
-          ai_response:   String(_sessionFinalResponse || '').slice(0, 4000),
-          tools_called:  _sessionToolCalls,
-          model:         'gpt-4o',
-          session_id:    'session_' + Date.now()
-        })
-      }).catch(function(){});  // non-fatal — ignore errors silently
-    }
-  } catch(_e) {}
-}
 
 // ═══════════════════════════════════════════════════════════
 //  THEME SELECTOR
@@ -4423,6 +4023,7 @@ RULES:
 }
 
 async function handleFormulaMode(text) {
+  stopRequested = false;
   if (!hasValidConfig()) {
     addMessage('error', '⚠️ Please configure your AI provider in Settings first.');
     return;
@@ -4468,20 +4069,7 @@ async function handleFormulaMode(text) {
   setStatus('ready');
 }
 
-async function insertFormulaToCell() {
-  if (!lastExtractedFormula) return;
-  try {
-    await Excel.run(async (context) => {
-      const cell = context.workbook.getActiveCell();
-      cell.formulas = [[lastExtractedFormula]];
-      await context.sync();
-    });
-    showNotif('✅ Formula inserted into selected cell!', 'success');
-    addMessage('system', `📥 Inserted into active cell: \`${lastExtractedFormula}\``);
-  } catch(e) {
-    showNotif('❌ Insert failed: ' + e.message, 'fail');
-  }
-}
+
 
 // ═══════════════════════════════════════════════════════════
 //  TEMPLATE LIBRARY
@@ -4888,7 +4476,7 @@ Fill in the highlighted cells and the formulas will calculate automatically.`);
 // PRO: Auth, Usage, Upgrade, Arabic support
 // ════════════════════════════════════════════════════════════
 
-var PRO_BACKEND_URL = 'https://aiexcel.replit.app';
+var PRO_BACKEND_URL = window.location.origin;
 
 // ── Login screen ──────────────────────────────────────────────
 function showLoginScreen() {
@@ -4967,54 +4555,6 @@ async function doRegister() {
     errEl.textContent = 'Connection error. Check your internet and try again.';
   }
   btn.textContent = 'Create Account'; btn.disabled = false;
-}
-
-// ── Forgot password ───────────────────────────────────────────
-function showForgotPassword() {
-  // Hide ALL main login fields so forgot-view is the only thing showing
-  ['login-email','login-password','login-confirm'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el && el.parentElement) el.parentElement.style.display = 'none';
-  });
-  document.getElementById('login-confirm-row').style.display = 'none';
-  var tabRow = document.querySelector('.login-tab-row');
-  if (tabRow) tabRow.style.display = 'none';
-  document.getElementById('login-submit-btn').style.display = 'none';
-  document.getElementById('forgot-link').style.display = 'none';
-  document.getElementById('forgot-view').style.display = 'block';
-  document.getElementById('forgot-email').value = document.getElementById('login-email').value || '';
-  document.getElementById('forgot-error').textContent = '';
-  document.getElementById('forgot-success').style.display = 'none';
-}
-
-function hideForgotPassword() {
-  document.getElementById('forgot-view').style.display = 'none';
-  // Restore main login fields
-  ['login-email','login-password'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el && el.parentElement) el.parentElement.style.display = '';
-  });
-  var tabRow = document.querySelector('.login-tab-row');
-  if (tabRow) tabRow.style.display = '';
-  document.getElementById('login-submit-btn').style.display = 'block';
-  document.getElementById('forgot-link').style.display = 'block';
-  document.getElementById('forgot-error').textContent = '';
-}
-
-async function doForgotPassword() {
-  var email = document.getElementById('forgot-email').value.trim();
-  var errEl = document.getElementById('forgot-error');
-  var succEl = document.getElementById('forgot-success');
-  if (!email) { errEl.textContent = 'Please enter your email.'; return; }
-  errEl.textContent = ''; succEl.style.display = 'none';
-  try {
-    var res = await fetch(PRO_BACKEND_URL + '/api/auth/forgot-password', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email })
-    });
-    if (res.ok) { succEl.style.display = 'block'; }
-    else { var d = await res.json(); errEl.textContent = d.error || 'Failed to send reset email.'; }
-  } catch(e) { errEl.textContent = 'Connection error. Try again.'; }
 }
 
 // ── Usage pill ────────────────────────────────────────────────
@@ -5116,61 +4656,8 @@ function isArabicValues(values) {
   }
   return false;
 }
+
 </script>
-
-<!-- Template Library Modal — direct body child to avoid WebView2 hit-area issues -->
-<div class="tpl-overlay" id="tpl-overlay" onclick="if(event.target===this)closeTemplates()">
-  <div class="tpl-modal">
-    <div class="tpl-header">
-      <span class="tpl-title">📋 Template Library</span>
-      <button class="tpl-close" onclick="closeTemplates()">✕</button>
-    </div>
-    <div class="tpl-cats" id="tpl-cats">
-      <div class="tpl-cat active" data-cat="all">All</div>
-      <div class="tpl-cat" data-cat="finance">Finance</div>
-      <div class="tpl-cat" data-cat="project">Project</div>
-      <div class="tpl-cat" data-cat="sales">Sales</div>
-      <div class="tpl-cat" data-cat="hr">HR</div>
-      <div class="tpl-cat" data-cat="operations">Operations</div>
-    </div>
-    <div class="tpl-grid" id="tpl-grid"></div>
-    <div class="tpl-inserting" id="tpl-inserting">
-      <span>⚡</span> <span>Inserting template...</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── PRO: Login screen ── -->
-<div id="login-screen" class="hidden">
-  <div class="login-logo">✦ Shayntech Excel AI</div>
-  <div class="login-tagline">Pro — Powered by Qwen AI</div>
-  <div class="login-box">
-    <div class="login-tab-row">
-      <button class="login-tab active" id="ltab-login" onclick="switchLoginTab('login')">Sign In</button>
-      <button class="login-tab" id="ltab-register" onclick="switchLoginTab('register')">Create Account</button>
-    </div>
-    <div class="login-field">
-      <label>Email</label>
-      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"/>
-    </div>
-    <div class="login-field">
-      <label>Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
-    </div>
-    <div id="login-confirm-row" class="login-field" style="display:none;">
-      <label>Confirm Password</label>
-      <input type="password" id="login-confirm" placeholder="••••••••"/>
-    </div>
-    <button class="forgot-link" id="forgot-link" onclick="showForgotPassword()">Forgot password?</button>
-    <button class="login-submit" id="login-submit-btn" onclick="doLogin()">Sign In</button>
-    <div class="login-error" id="login-error"></div>
-    <!-- Forgot password view -->
-    <div id="forgot-view" style="display:none;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter your email and we'll send a reset link.</div>
-      <div class="login-field">
-        <label>Email</label>
-        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"/>
-      </div>
-      <button class="login-submit" onclick="doForgotPassword()">Send Reset Link</button>
-      <div class="forgot-success" id="forgot-success" style="display:none;">✓ Check your email for a reset link.</div>
-      <div class="login-error" id="forgot-error"></div>
+<script src="/agent-runtime.js"></script>
+</body>
+</html>

@@ -1,46 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
-const { requireAuth, checkUsage, incrementUsage, logTokens } = require('../lib/usage');
-const { routeModel, callOpenAI, MODEL_FAST, MODEL_HEAVY, MODEL_COSTS } = require('../lib/openai');
+const { requireAuth, checkUsage, logTokens } = require('../lib/usage');
+const { routeModel, callOpenAI, MODEL_FAST, MODEL_COSTS } = require('../lib/openai');
+const { validateChat, validateResponse, RELIABILITY_POLICY } = require('../lib/chat-validation');
 
-router.post('/', requireAuth, checkUsage, async (req, res) => {
+router.post('/', requireAuth, (req, res, next) => {
+  try { validateChat(req.body); next(); } catch (error) { res.status(400).json({ error: error.message }); }
+}, checkUsage, async (req, res) => {
   const { messages, tools, tool_choice, has_attachment, attachment_type } = req.body;
-  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages array is required.' });
 
   const model = routeModel(messages, has_attachment, attachment_type);
-  console.log('[chat] user=' + req.user.email + ' model=' + model);
+  console.log('[chat] model=' + model);
 
-  const body = { model, messages, temperature: 0.1, max_tokens: 4096 };
+  const body = { model, messages: [{ role: 'system', content: RELIABILITY_POLICY }, ...messages], temperature: 0.1, max_tokens: 4096 };
   if (tools && tools.length > 0) { body.tools = tools; body.tool_choice = tool_choice || 'auto'; }
 
   try {
     let data = await callOpenAI(body);
 
-    if (data._retryWithoutTools) {
-      console.warn('[chat] retrying without tools');
-      const retryBody = { ...body }; delete retryBody.tools; delete retryBody.tool_choice;
-      data = await callOpenAI(retryBody);
-    }
-
-    if (data._error && model !== MODEL_HEAVY && tools && tools.length > 0) {
-      console.warn('[chat] escalating to heavy model');
-      body.model = MODEL_HEAVY;
-      data = await callOpenAI(body);
-    }
-
     if (data._error) return res.status(data._status || 500).json({ error: data._error });
+    try { validateResponse(data, tools); } catch (error) { return res.status(502).json({ error: error.message }); }
 
     const usage = data.usage || {};
     const inputTok  = usage.prompt_tokens    || 0;
     const outputTok = usage.completion_tokens || 0;
-    const costs     = MODEL_COSTS[data.model] || MODEL_COSTS[MODEL_FAST];
+    const costs     = MODEL_COSTS[data.model] || MODEL_COSTS[MODEL_FAST] || { input: 0, output: 0 };
     const costUsd   = (inputTok * costs.input + outputTok * costs.output) / 1000;
 
-    await Promise.all([
-      incrementUsage(req.user.id, req.profile),
-      logTokens(req.user.id, data.model || model, inputTok, outputTok, costUsd)
-    ]);
+    await logTokens(req.user.id, data.model || model, inputTok, outputTok, costUsd);
     res.json(data);
   } catch (err) {
     console.error('[chat] error:', err.message);
@@ -49,6 +37,7 @@ router.post('/', requireAuth, checkUsage, async (req, res) => {
 });
 
 router.post('/log', requireAuth, async (req, res) => {
+  if (process.env.CHAT_LOGGING_ENABLED !== 'true') return res.json({ ok: true, stored: false });
   const { user_message, ai_response, tools_called, model, session_id } = req.body;
   try {
     await supabase.from('chat_logs').insert({

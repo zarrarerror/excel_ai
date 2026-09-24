@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 
 const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
-const MODEL_FAST  = process.env.OPENAI_MODEL_FAST  || 'gpt-4o-mini';
+const MODEL_FAST  = process.env.OPENAI_MODEL_FAST  || 'gpt-4o';
 const MODEL_HEAVY = process.env.OPENAI_MODEL_HEAVY || 'gpt-4o';
 const MODEL_COSTS = {
   'gpt-4o-mini': { input: 0.000150, output: 0.000600 },
@@ -23,23 +23,31 @@ function routeModel(messages, hasAttachment, attachmentType) {
 }
 
 async function callOpenAI(body, retryCount = 0) {
-  const res = await fetch(OPENAI_URL, {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  let res, data;
+  try {
+  res = await fetch(OPENAI_URL, {
+    signal: controller.signal,
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  const data = await res.json();
+  data = await res.json();
+  } catch (error) {
+    return { _error: error.name === 'AbortError' ? 'AI request timed out. Please try again.' : 'AI service returned an invalid response or is unreachable.', _status: 502 };
+  } finally { clearTimeout(timeout); }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { _error: 'AI service returned an invalid response.', _status: 502 };
   if (!res.ok) {
-    console.error('[openai] error:', JSON.stringify(data).slice(0, 300));
-    if (res.status === 429 && retryCount < 3) {
-      const wait = (parseInt(res.headers.get('retry-after') || '12')) * 1000 || (retryCount + 1) * 12000;
-      console.warn('[openai] 429 — waiting ' + wait + 'ms, retry ' + (retryCount+1) + '/3');
+    console.error('[openai] upstream status:', res.status);
+    if ((res.status === 429 || res.status >= 500) && retryCount < 1) {
+      const wait = Math.min(10000, Math.max(1000, Number(res.headers.get('retry-after')) * 1000 || 2000));
+      console.warn('[openai] temporary failure; retrying once after ' + wait + 'ms');
       await new Promise(r => setTimeout(r, wait));
       return callOpenAI(body, retryCount + 1);
     }
-    if (res.status === 400 && body.tools) { data._retryWithoutTools = true; return data; }
-    data._error = data.error?.message || 'OpenAI request failed.';
-    data._status = res.status;
+    data._error = res.status === 429 ? 'AI capacity temporarily unavailable. Please try again shortly.' : 'AI service rejected the request. No fallback actions were executed.';
+    data._status = res.status === 429 ? 429 : 502;
     return data;
   }
   normalizeToolCalls(data);
