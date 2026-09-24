@@ -4,9 +4,9 @@ const supabase = require('../lib/supabase');
 
 router.post('/', async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required.' });
+  if (typeof email !== 'string' || email.length > 254 || !email.includes('@')) return res.status(400).json({ error: 'A valid email is required.' });
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://aiexcel.replit.app/reset-password'
+    redirectTo: (process.env.PUBLIC_URL || 'http://localhost:5000') + '/reset-password'
   });
   if (error) return res.status(400).json({ error: error.message });
   res.json({ ok: true });

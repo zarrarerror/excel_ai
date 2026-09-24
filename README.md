@@ -1,3 +1,5 @@
+> **Pro 2.1 server deployment:** read [HERMES_HANDOFF.md](HERMES_HANDOFF.md), including the required database migration, before deploying.
+
 # Shayntech AI Agent for Excel
 
 > Your agentic AI co-pilot for Microsoft Excel.

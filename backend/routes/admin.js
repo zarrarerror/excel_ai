@@ -30,4 +30,29 @@ router.get('/stats', async function(q, p) {
 router.get('/tokens', async function(q, p) {
   if (!ok(q, p)) return;
   try {
-    var s
+    var sel = 'id,model,input_tokens,output_tokens';
+    sel += ',cost_usd,created_at,profiles(email)';
+    var r = await sb.from('token_logs')
+      .select(sel)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (r.error) throw r.error;
+    var rows = (r.data || []).map(function(x) {
+      return {
+        id: x.id,
+        email: x.profiles ? x.profiles.email : '?',
+        model: x.model,
+        input_tokens: x.input_tokens,
+        output_tokens: x.output_tokens,
+        total_tokens: x.input_tokens + x.output_tokens,
+        cost_usd: x.cost_usd,
+        created_at: x.created_at
+      };
+    });
+    p.json({ logs: rows });
+  } catch (e) {
+    p.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = router;
