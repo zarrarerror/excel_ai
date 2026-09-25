@@ -28,6 +28,28 @@ ExcelAIAgent/
 
 ---
 
+## Install (end users)
+
+The published `manifest.xml` in this repo already points at a live, hosted task pane
+(`https://shayntech.com/excel-ai/taskpane.html`), so you can install it as-is:
+
+1. Download `manifest.xml` from this repo.
+2. Open Excel → **Insert** → **Get Add-ins** → **My Add-ins** → **Upload My Add-in** → select the file.
+3. On Excel for **Mac**, if that button is missing, sideload via the wef folder instead:
+   ```bash
+   mkdir -p ~/Library/Containers/com.microsoft.Excel/Data/Documents/wef
+   cp ~/Downloads/manifest.xml ~/Library/Containers/com.microsoft.Excel/Data/Documents/wef/
+   ```
+   Then quit and reopen Excel.
+4. Click **Open AI Agent** on the Home tab → **Settings** → add your own free AI key.
+
+Hosted installer page: https://shayntech.com/excel-ai/
+
+Only follow STEP 1 and STEP 2 below if you are hosting the task pane **yourself**
+(e.g. you forked this repo and want your own URL).
+
+---
+
 ## STEP 1 — Host taskpane.html
 
 The add-in needs `taskpane.html` to be accessible via HTTPS (or HTTP for local dev).
