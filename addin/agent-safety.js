@@ -73,6 +73,11 @@
       if (cell.rows !== 1 || cell.columns !== 1) throw new Error('set_formula requires one cell.');
       formula(args.formula);
     }
+    if (name === 'inspect_formula') {
+      const cell = parseRange(args.cell);
+      if (cell.rows !== 1 || cell.columns !== 1) throw new Error('inspect_formula requires one cell.');
+      if (args.formula !== undefined) formula(args.formula);
+    }
     if (name === 'smart_fill') {
       const origin = parseRange(args.start);
       if (origin.rows !== 1 || origin.columns !== 1 || origin.row + args.count > 1048576) throw new Error('Fill exceeds Excel bounds.');
@@ -81,9 +86,38 @@
   }
   function formula(value) {
     if (typeof value !== 'string' || !value.startsWith('=')) throw new Error('Formula must start with =.');
+    if (value.length > 8192) throw new Error('Formula exceeds Excel length limit.');
     if (/\b(?:WEBSERVICE|RTD|HYPERLINK)\s*\(|\[[^\]]+\][^!]*!|\|[^!]*!/i.test(value)) throw new Error('External-link and network formulas are not supported by the agent.');
   }
   function literal(value) { return typeof value === 'string' && /^[=+\-@]/.test(value) ? "'" + value : value === null ? '' : value; }
+  function writeTarget(name, args) {
+    if (!['write_range', 'set_formula', 'set_formulas_range', 'clean_data'].includes(name)) return null;
+    const origin = parseRange(args.cell || args.range);
+    const size = name === 'set_formula' ? { rows: 1, columns: 1 } : name === 'clean_data' ? origin : matrix(args.values || args.formulas);
+    return { sheet: args.sheet, range: columnName(origin.column) + (origin.row + 1) + ':' + columnName(origin.column + size.columns - 1) + (origin.row + size.rows), ...size };
+  }
+  function sameTarget(a, b) { return !!a && !!b && a.sheet === b.sheet && a.range === b.range; }
+  // A bounded, conservative reference sample, not a complete Excel formula parser.
+  function formulaReferences(value, currentSheet) {
+    const refs = [], seen = new Set();
+    const source = value.replace(/"(?:[^"]|"")*"/g, '').replace(/\[[^\]]*\]/g, '');
+    const pattern = /(^|[^\w.\]!])(?:(?:'((?:[^']|'')+)'|([A-Za-z_][\w.]*))!)?(\$?[A-Z]{1,3}\$?[1-9]\d*(?::\$?[A-Z]{1,3}\$?[1-9]\d*)?)(?![\w.(])/gi;
+    for (const m of source.matchAll(pattern)) {
+      const sheet = (m[2] || m[3] || currentSheet).replace(/''/g, "'");
+      const range = m[4].replace(/\$/g, '').toUpperCase(), key = sheet + '!' + range;
+      try { const size = parseRange(range); if (size.rows * size.columns > 100) continue; } catch (_) { continue; }
+      if (!seen.has(key)) { seen.add(key); refs.push({ sheet, range }); }
+      if (refs.length >= 12) break;
+    }
+    return refs;
+  }
+  function formulaHint(code) {
+    return ({ '#VALUE!': 'Inspect reference valueTypes: arithmetic on text or a formula returning an empty string can fail. Keep numeric inputs numeric. SUM can ignore intentionally blank/text references, but do not silently ignore required amounts or wrong references.',
+      '#DIV/0!': 'Inspect the denominator. Distinguish a genuinely missing input from a zero value; do not invent a replacement.',
+      '#REF!': 'Read the actual sheet and range names; replace only invalid references.',
+      '#NAME?': 'Check function support, English formula names and quoted sheet names.',
+      '#SPILL!': 'Inspect the spill destination. Never clear occupied user cells automatically.' })[code] || 'Read the affected cells and references. Correct the cause; do not mask it with IFERROR, hardcoded zero or a fabricated value.';
+  }
   function audit(values, formulas, startRow, startColumn, hasHeader) {
     const report = { dataRows: Math.max(0, values.length - (hasHeader ? 1 : 0)), blankCells: 0, duplicateRows: 0, whitespaceCells: 0, formulaErrors: [], errorsTruncated: false };
     const seen = new Set();
@@ -106,5 +140,5 @@
     });
     return report;
   }
-  return { MAX_CELLS, parseRange, validateTool, matrix, formula, literal, audit, columnName };
+  return { MAX_CELLS, parseRange, validateTool, matrix, formula, literal, audit, columnName, writeTarget, sameTarget, formulaReferences, formulaHint };
 });

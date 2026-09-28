@@ -20,9 +20,12 @@ const clone = value => JSON.parse(JSON.stringify(value));
 
 function harness() {
   const log = [], operations = [], button = { disabled: true };
-  const state = { values: [[3, '=literal']], formulas: [['=SUM(A2:A3)', '=literal']], failSync: false, runs: 0 };
+  const state = { values: [[3, '=literal']], formulas: [['=SUM(A2:A3)', '=literal']], failSync: false, runs: 0, syncs: 0, row: 0, column: 0 };
   const range = {
     load() {}, getResizedRange() { return this; },
+    calculate() { if (state.evaluate) state.values = state.formulas.map(row => row.map(state.evaluate)); },
+    get rowIndex() { return state.row; }, get columnIndex() { return state.column; },
+    get valueTypes() { return state.values.map(row => row.map(v => typeof v)); },
     get values() { return clone(state.values); },
     set values(value) { state.values = clone(value); state.formulas = clone(value); },
     get formulas() { return clone(state.formulas); },
@@ -33,10 +36,10 @@ function harness() {
     insert(direction) { operations.push(['insert', direction]); },
     delete(direction) { operations.push(['delete', direction]); }
   };
-  const sheet = { getRange: () => range, getRangeByIndexes(...args) { operations.push(args); return range; } };
+  const sheet = { getRange(address) { if (/^[A-Z]+[0-9]/i.test(address)) { const p = AgentSafety.parseRange(address); state.row = p.row; state.column = p.column; } return range; }, getRangeByIndexes(...args) { operations.push(args); return range; } };
   const context = {
     workbook: { worksheets: { getItem: () => sheet } },
-    async sync() { if (state.failSync) throw new Error('Simulated Excel sync failure'); }
+    async sync() { state.syncs++; if (state.failSync || state.failOnSync === state.syncs) throw new Error('Simulated Excel sync failure'); }
   };
   const sandbox = vm.createContext({
     AgentSafety, undoStack: [], agentRunning: false, agentMemory: {}, stopRequested: false,
@@ -52,7 +55,7 @@ function harness() {
     readWorkbook: async () => ({}), workbookToText: () => 'Sheet1!A1:B1',
     storage: { getItem: () => null }, buildErrorHint: (_tool, _args, message) => message
   });
-  vm.runInContext(definitions + '\n' + ['restoreSnapshot', 'updateUndoBtn', 'applyUndo', 'executeLegacyTool', 'executeTool', 'runAgent'].map(functionSource).join('\n'), sandbox);
+  vm.runInContext(definitions + '\n' + ['restoreSnapshot', 'snapshotMatches', 'inspectFormula', 'verifyWrittenRanges', 'updateUndoBtn', 'applyUndo', 'executeLegacyTool', 'executeTool', 'runAgent'].map(functionSource).join('\n'), sandbox);
   return { sandbox, state, operations, log, button };
 }
 
@@ -158,4 +161,97 @@ test('malformed AI arguments block all subsequent tools', async () => {
   await sandbox.runAgent('Update workbook');
   assert.equal(state.runs, 0);
   assert.ok(log.some(message => /Invalid AI action blocked/.test(message.text)));
+});
+
+test('a rejected formula restores the entire batch and leaves earlier undo records intact', async () => {
+  const { sandbox, state } = harness();
+  state.values = [[7, 8]]; state.formulas = [[7, 8]];
+  state.evaluate = f => f === '=1+1' ? 2 : '#VALUE!';
+  const previous = { prior: true }; sandbox.undoStack.push(previous);
+  await assert.rejects(sandbox.executeTool('set_formulas_range', { sheet: 'Sheet1', range: 'B27', formulas: [['=1+1', '=B23+B25+B26']] }), error => {
+    assert.equal(error.code, 'FORMULA_REPAIR_REQUIRED');
+    assert.equal(error.diagnostic.rollbackVerified, true);
+    assert.equal(error.diagnostic.issues[0].cell, 'C27');
+    return true;
+  });
+  assert.deepEqual(state.values, [[7, 8]]);
+  assert.deepEqual(state.formulas, [[7, 8]]);
+  assert.equal(sandbox.undoStack.length, 1);
+  assert.equal(sandbox.undoStack[0], previous);
+});
+
+test('uncertain rollback never enables an automatic retry and retains undo', async () => {
+  const { sandbox, state } = harness();
+  state.values = [[7]]; state.formulas = [[7]];
+  state.evaluate = () => '#VALUE!'; state.failOnSync = 4;
+  await assert.rejects(sandbox.executeTool('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=B23+B25+B26' }), error => {
+    assert.equal(error.code, undefined); assert.match(error.message, /could not be verified/); return true;
+  });
+  assert.equal(sandbox.undoStack.length, 1);
+});
+
+test('agent diagnoses, repairs a rolled-back formula, skips stale actions and verifies before completing', async () => {
+  const { sandbox, state, log } = harness();
+  state.values = [[0]]; state.formulas = [[0]];
+  state.evaluate = f => f === '=B23+B25+B26' ? '#VALUE!' : f === '=SUM(B23,B25,B26)' ? 0 : f;
+  sandbox.cfg.maxIter = 6;
+  let calls = 0;
+  sandbox.callAI = async messages => {
+    calls++;
+    if (calls === 1) return { role: 'assistant', tool_calls: [
+      toolCall('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=B23+B25+B26' }, 'bad'),
+      toolCall('delete_sheet', { name: 'Sheet1' }, 'stale')
+    ] };
+    if (calls === 2) {
+      const results = messages.filter(m => m.role === 'tool');
+      assert.equal(results.length, 2); assert.match(results[0].content, /rollbackVerified/); assert.match(results[1].content, /not_executed/);
+      return { role: 'assistant', tool_calls: [toolCall('inspect_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=B23+B25+B26' }, 'diagnose')] };
+    }
+    if (calls === 3) return { role: 'assistant', tool_calls: [toolCall('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=SUM(B23,B25,B26)' }, 'fixed')] };
+    return { role: 'assistant', tool_calls: [toolCall('task_complete', { summary: 'Formula repaired.' }, 'done')] };
+  };
+  await sandbox.runAgent('Fix this form');
+  assert.equal(calls, 4);
+  assert.deepEqual(state.formulas, [['=SUM(B23,B25,B26)']]);
+  assert.ok(log.some(m => /Final check: no Excel formula errors/.test(m.text)));
+  assert.ok(log.some(m => m.text === 'Formula repaired.'));
+});
+
+test('repair cannot overwrite source data or expand the failed formula target', async () => {
+  const { sandbox, state, log } = harness();
+  state.values = [[5]]; state.formulas = [[5]]; state.evaluate = () => '#VALUE!';
+  sandbox.cfg.maxIter = 3; let calls = 0;
+  sandbox.callAI = async () => ({ role: 'assistant', tool_calls: [++calls === 1
+    ? toolCall('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=1/0' }, 'fail')
+    : toolCall('write_range', { sheet: 'Sheet1', range: 'B23', values: [[0]] }, 'unsafe' + calls)] });
+  await sandbox.runAgent('Build a form');
+  assert.deepEqual(state.values, [[5]]);
+  assert.equal(state.runs, 1);
+  assert.ok(!log.some(m => /write_range succeeded/.test(m.text)));
+});
+
+test('repeated rejected formulas stop after two repair attempts without leaving errors', async () => {
+  const { sandbox, state, log } = harness();
+  state.values = [[5]]; state.formulas = [[5]]; state.evaluate = () => '#VALUE!';
+  sandbox.cfg.maxIter = 10; let calls = 0;
+  sandbox.callAI = async () => {
+    calls++;
+    return { role: 'assistant', tool_calls: [calls % 2
+      ? toolCall('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=1/0' }, 'bad' + calls)
+      : toolCall('read_range', { sheet: 'Sheet1', range: 'B23:B27' }, 'read' + calls)] };
+  };
+  await sandbox.runAgent('Fix the total');
+  assert.equal(calls, 5); assert.deepEqual(state.values, [[5]]);
+  assert.ok(log.some(m => /Automatic repair limit reached/.test(m.text)));
+});
+
+test('final verification blocks false completion if a later write breaks an earlier total', async () => {
+  const { sandbox, log } = harness();
+  let calls = 0, checks = 0;
+  sandbox.cfg.maxIter = 5;
+  sandbox.verifyWrittenRanges = async () => { checks++; return { checkedRanges: ['Sheet1!B27'], formulaErrors: [{ sheet: 'Sheet1', cell: 'B27', error: '#VALUE!' }] }; };
+  sandbox.callAI = async () => ({ role: 'assistant', tool_calls: [toolCall('task_complete', { summary: 'Everything is correct.' }, 'done' + ++calls)] });
+  await sandbox.runAgent('Complete form');
+  assert.equal(checks, 3); assert.equal(calls, 3);
+  assert.ok(!log.some(m => m.text === 'Everything is correct.'));
 });

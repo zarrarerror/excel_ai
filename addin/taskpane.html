@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/agent-safety.js"></script>
+<script src="/agent-safety.js?v=formula-recovery-1"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shayntech Excel AI Pro</title>
@@ -3194,6 +3194,7 @@ async function callOllama(messages, tools) {
 //  TOOL DEFINITIONS (OpenAI function-calling format)
 // ═══════════════════════════════════════════════════════════════
 const TOOL_DEFINITIONS = [
+  { type: 'function', function: { name: 'inspect_formula', description: 'Read-only diagnosis of one formula and a bounded sample of referenced values, formulas and Excel value types. Supply formula to inspect a failed formula that was rolled back. Does not alter cells.', parameters: { type: 'object', properties: { sheet: { type: 'string' }, cell: { type: 'string' }, formula: { type: 'string' } }, required: ['sheet', 'cell'] } } },
   { type: 'function', function: { name: 'audit_data_quality', description: 'Read-only exact audit of blanks, duplicates, whitespace and formula errors in a bounded range.', parameters: { type: 'object', properties: { sheet: { type: 'string' }, range: { type: 'string' }, has_header: { type: 'boolean' } }, required: ['sheet', 'range'] } } },
   {
     type: 'function',
@@ -3215,7 +3216,7 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'set_formula',
-      description: 'Set a single Excel formula in one cell.',
+      description: 'Set and recalculate one formula. Failed formulas are restored for diagnosis. Prefer set_formulas_range for batches.',
       parameters: {
         type: 'object',
         properties: {
@@ -3231,7 +3232,7 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'set_formulas_range',
-      description: 'Set formulas in a range of cells.',
+      description: 'Write a rectangular batch of formulas, recalculate and validate. On a formula error the entire batch is restored; inspect_formula helps diagnose before retry.',
       parameters: {
         type: 'object',
         properties: {
@@ -4725,6 +4726,6 @@ function isArabicValues(values) {
 }
 
 </script>
-<script src="/agent-runtime.js"></script>
+<script src="/agent-runtime.js?v=formula-recovery-1"></script>
 </body>
 </html>
