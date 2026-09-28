@@ -195,6 +195,8 @@ test('agent diagnoses, repairs a rolled-back formula, skips stale actions and ve
   state.values = [[0]]; state.formulas = [[0]];
   state.evaluate = f => f === '=B23+B25+B26' ? '#VALUE!' : f === '=SUM(B23,B25,B26)' ? 0 : f;
   sandbox.cfg.maxIter = 6;
+  const layouts = [];
+  sandbox.executeLegacyTool = async name => { layouts.push(name); return 'Layout applied'; };
   let calls = 0;
   sandbox.callAI = async messages => {
     calls++;
@@ -208,10 +210,12 @@ test('agent diagnoses, repairs a rolled-back formula, skips stale actions and ve
       return { role: 'assistant', tool_calls: [toolCall('inspect_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=B23+B25+B26' }, 'diagnose')] };
     }
     if (calls === 3) return { role: 'assistant', tool_calls: [toolCall('set_formula', { sheet: 'Sheet1', cell: 'B27', formula: '=SUM(B23,B25,B26)' }, 'fixed')] };
+    if (calls === 4) return { role: 'assistant', tool_calls: [toolCall('format_range', { sheet: 'Sheet1', range: 'B27', bold: true }, 'layout')] };
     return { role: 'assistant', tool_calls: [toolCall('task_complete', { summary: 'Formula repaired.' }, 'done')] };
   };
   await sandbox.runAgent('Fix this form');
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
+  assert.deepEqual(layouts, ['format_range']);
   assert.deepEqual(state.formulas, [['=SUM(B23,B25,B26)']]);
   assert.ok(log.some(m => /Final check: no Excel formula errors/.test(m.text)));
   assert.ok(log.some(m => m.text === 'Formula repaired.'));

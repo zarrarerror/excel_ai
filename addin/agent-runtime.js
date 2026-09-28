@@ -249,7 +249,7 @@ Memory contains preferences, not evidence about the current workbook.`;
       if (stopRequested) break;
       messages.push(response);
       if (!response.tool_calls?.length) {
-        if (repair) { addMessage('error', 'The formula could not be repaired automatically. Previous cells are restored. ' + JSON.stringify(repair.diagnostic.issues)); break; }
+        if (repair) { addMessage('error', 'The formula could not be repaired automatically. Previous cells are restored. ' + JSON.stringify(repair.diagnostic.issues)); stopRequested = true; break; }
         const check = await checkCompletion();
         if (check.ok) { if (response.content) addMessage('agent', response.content); completed = true; break; }
         messages.push({ role: 'system', content: JSON.stringify(check) });
