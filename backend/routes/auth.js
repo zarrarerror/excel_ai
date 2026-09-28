@@ -36,7 +36,7 @@ router.get('/me', async (req, res) => {
   if (error || !user) return res.status(401).json({ error: 'Invalid or expired session.' });
   const { data: p, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
   if (profileError || !p) return res.status(503).json({ error: 'Account profile unavailable.' });
-  const freeLimit = parseInt(process.env.FREE_USES_LIMIT || '50');
+  const freeLimit = require('../lib/usage').FREE_LIMIT;
   const proLimit  = parseInt(process.env.PRO_USES_LIMIT  || '1000');
   const isPro = p?.is_pro || false;
   const used  = p?.lifetime_usage || 0;

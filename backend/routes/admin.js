@@ -55,4 +55,15 @@ router.get('/tokens', async function(q, p) {
   }
 });
 
+// Manual activation after the owner confirms an offline payment. No quota reset.
+router.post('/plan', async (req, res) => {
+  if (!ok(req, res)) return;
+  const { email, is_pro } = req.body;
+  if (typeof email !== 'string' || !email.includes('@') || email.length > 254 || typeof is_pro !== 'boolean') return res.status(400).json({ error: 'Provide an account email and an explicit plan status.' });
+  const { data, error } = await sb.from('profiles').update({ is_pro }).eq('email', email.trim().toLowerCase()).select('id,email,is_pro');
+  if (error) return res.status(503).json({ error: 'Plan update failed.' });
+  if (data?.length !== 1) return res.status(404).json({ error: 'Account not found.' });
+  res.json({ user: data[0] });
+});
+
 module.exports = router;

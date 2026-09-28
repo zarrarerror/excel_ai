@@ -6,7 +6,9 @@ const { routeModel, callOpenAI, MODEL_FAST, MODEL_COSTS } = require('../lib/open
 const { validateChat, validateResponse, RELIABILITY_POLICY } = require('../lib/chat-validation');
 
 router.post('/', requireAuth, (req, res, next) => {
-  try { validateChat(req.body); next(); } catch (error) { res.status(400).json({ error: error.message }); }
+  try { validateChat(req.body);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.body.prompt_id || '')) throw new Error('A valid prompt_id is required. Update the add-in and try again.');
+    next(); } catch (error) { res.status(400).json({ error: error.message }); }
 }, checkUsage, async (req, res) => {
   const { messages, tools, tool_choice, has_attachment, attachment_type } = req.body;
 
@@ -25,7 +27,7 @@ router.post('/', requireAuth, (req, res, next) => {
     const usage = data.usage || {};
     const inputTok  = usage.prompt_tokens    || 0;
     const outputTok = usage.completion_tokens || 0;
-    const costs     = MODEL_COSTS[data.model] || MODEL_COSTS[MODEL_FAST] || { input: 0, output: 0 };
+    const costs     = MODEL_COSTS[data.model] || MODEL_COSTS[model] || { input: 0, output: 0 };
     const costUsd   = (inputTok * costs.input + outputTok * costs.output) / 1000;
 
     await logTokens(req.user.id, data.model || model, inputTok, outputTok, costUsd);

@@ -26,7 +26,7 @@ footer{text-align:center;color:#334155;font-size:12px;margin-top:60px}
   <ul>
     <li><strong style="color:#e2e8f0">Account data:</strong> email address and password (hashed)</li>
     <li><strong style="color:#e2e8f0">Usage data:</strong> number of AI requests, tokens used, and feature interactions</li>
-    <li><strong style="color:#e2e8f0">Spreadsheet content:</strong> text you send to the AI assistant to process your requests. This is transmitted securely and not stored permanently.</li>
+    <li><strong style="color:#e2e8f0">Spreadsheet content:</strong> text you send to the AI assistant to process your requests. Hosted chat content is not logged by default; an administrator can enable chat logging. Token usage is recorded, and the add-in saves chat history locally.</li>
     <li><strong style="color:#e2e8f0">Payment data:</strong> handled entirely by Paddle — we do not store card details</li>
   </ul>
 
@@ -44,7 +44,7 @@ footer{text-align:center;color:#334155;font-size:12px;margin-top:60px}
   <h2>4. Data Sharing</h2>
   <p>We do not sell your personal data. We share data only with:</p>
   <ul>
-    <li><strong style="color:#e2e8f0">OpenAI:</strong> spreadsheet content you submit is sent to OpenAI's API to generate AI responses, subject to OpenAI's privacy policy</li>
+    <li><strong style="color:#e2e8f0">AI providers:</strong> hosted requests are sent to the configured provider (DeepSeek by default). With your own API key, requests go directly from the add-in to your selected provider. Its privacy policy applies. Your own key is saved on your device and sent to that provider.</li>
     <li><strong style="color:#e2e8f0">Paddle:</strong> payment processing and subscription management</li>
     <li><strong style="color:#e2e8f0">Supabase:</strong> database and authentication hosting</li>
   </ul>

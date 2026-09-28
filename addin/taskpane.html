@@ -861,7 +861,7 @@
     <span class="brand-name">Shayntech</span>
     <span class="brand-tag">AI Agent</span>
   </div>
-  <span id="usage-pill" onclick="showUpgradeModal()" title="Click to upgrade">50 free left</span>
+  <span id="usage-pill" onclick="showUpgradeModal()" title="Click to upgrade">5 free prompts</span>
   <div class="lang-toggle">
     <button class="lang-btn active" id="lang-en" onclick="setLanguage('en')">EN</button>
     <button class="lang-btn" id="lang-ar" onclick="setLanguage('ar')">ع</button>
@@ -941,17 +941,27 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
   <div class="settings-panel">
 
     <div class="settings-section">
-      <div class="settings-title">AI Provider</div>
+      <div class="settings-title">AI access</div>
+      <label for="ai-mode">Choose how to pay for AI</label>
+      <select id="ai-mode"><option value="hosted">Shayntech — 5 trial prompts or your paid plan</option><option value="own">Use my own API key</option></select>
+      <p class="about-desc">The trial is once per account. Each submitted task includes up to 41 AI calls over two hours. Started tasks count even if cancelled or the AI provider fails. Your own-key requests do not use your trial or plan allowance; your provider may charge you.</p>
+      <div class="settings-title">Your own AI provider</div>
       <div class="provider-tabs">
         <div class="ptab active" data-provider="openrouter">OpenRouter</div>
         <div class="ptab" data-provider="gemini">Gemini</div>
         <div class="ptab" data-provider="groq">Groq</div>
         <div class="ptab" data-provider="claude">Claude</div>
         <div class="ptab" data-provider="qwen">Qwen</div>
-        <div class="ptab" data-provider="ollama">Ollama</div>
+        <div class="ptab" data-provider="ollama">Ollama</div><div class="ptab" data-provider="compatible">DeepSeek / OpenAI-compatible</div>
       </div>
     </div>
 
+    <div class="provider-config" id="cfg-compatible"><div class="settings-section">
+      <label for="compatible-url">Provider API base URL</label><input id="compatible-url" type="url" value="https://api.deepseek.com" />
+      <label for="compatible-model">Model ID (must support tool calling)</label><input id="compatible-model" value="deepseek-flash" />
+      <label for="compatible-key">Your API key</label><input id="compatible-key" type="password" autocomplete="off" />
+      <p class="about-desc">Keys are saved on this device and sent directly to the selected provider. Use its official HTTPS API URL. The provider must allow browser requests and support Chat Completions; not every platform or model is compatible.</p>
+    </div></div>
     <!-- OpenRouter config -->
     <div class="provider-config active" id="cfg-openrouter">
       <div class="settings-section">
@@ -1251,7 +1261,7 @@ Example commands:<br/>
 <!-- ── PRO: Login screen ── -->
 <div id="login-screen" class="hidden">
   <div class="login-logo">✦ Shayntech Excel AI</div>
-  <div class="login-tagline">Pro — Secure AI workspace</div>
+  <div class="login-tagline">5 free prompts per account</div><button class="upgrade-close" onclick="chooseOwnKey()">Use my own API key instead</button>
   <div class="login-box">
     <div class="login-tab-row">
       <button class="login-tab active" id="ltab-login" onclick="switchLoginTab('login')">Sign In</button>
@@ -1285,7 +1295,18 @@ Example commands:<br/>
     </div>
   </div>
 </div>
+<div id="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title"><div class="upgrade-card">
+<h2 id="upgrade-title">Continue with Excel AI</h2><p>Your account includes five trial prompts, once only. Contact Shayntech to purchase a plan in USD, or use your own API key.</p>
+<p id="upgrade-contact">Send the email you used to sign in. Plans are priced in USD and activated manually.</p><a class="upgrade-btn" href="mailto:hello@shayntech.com?subject=Excel%20AI%20upgrade">Email hello@shayntech.com</a><a class="upgrade-btn" href="https://wa.me/966537443627?text=I%20want%20to%20upgrade%20Excel%20AI" target="_blank" rel="noopener noreferrer">WhatsApp +966 53 744 3627</a>
+<button class="upgrade-btn" onclick="chooseOwnKey()">Use my own API key</button><button class="upgrade-close" onclick="closeUpgradeModal()">Close</button>
+</div></div>
 <script>
+function chooseOwnKey() {
+  closeUpgradeModal(); hideLoginScreen();
+  document.getElementById('ai-mode').value = 'own';
+  document.querySelector('.tab[data-tab="settings"]').click();
+  showNotif('Choose your provider, enter your key and save settings.', 'success');
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  SHAYNTECH AI AGENT FOR EXCEL — Full Agent Logic
@@ -1335,8 +1356,11 @@ let agentRunning = false;
 let stopRequested = false;
 let attachedFileContent = null;
 let attachedFileName = null;
+let activePromptId = null;
 
 const cfg = {
+  mode: 'hosted',
+  compatible: { key: '', url: 'https://api.deepseek.com', model: 'deepseek-flash' },
   provider: 'openrouter',
   or: { key: '', model: 'deepseek/deepseek-r1:free' },
   gm: { key: '', model: 'gemini-2.0-flash' },
@@ -1393,7 +1417,7 @@ function _onBothReady() {
       }, 100);
     } else {
       var token = storage.getItem('pro_token');
-      if (!token) { showLoginScreen(); }
+      if (!token && cfg.mode !== 'own') { showLoginScreen(); }
       else { hideLoginScreen(); refreshUsagePill(); }
     }
   } catch(e) {
@@ -1436,11 +1460,12 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ── Provider tabs ──
 document.querySelectorAll('.ptab').forEach(pt => {
   pt.addEventListener('click', () => {
+    if (agentRunning) return;
     document.querySelectorAll('.ptab').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.provider-config').forEach(c => c.classList.remove('active'));
     pt.classList.add('active');
     document.getElementById('cfg-' + pt.dataset.provider).classList.add('active');
-    cfg.provider = pt.dataset.provider;
+    if (!agentRunning) cfg.provider = pt.dataset.provider;
   });
 });
 
@@ -1451,6 +1476,9 @@ document.getElementById('or-model').addEventListener('change', function() {
 
 // ── Settings: save & load ──
 function saveSettings() {
+  if (agentRunning) { showNotif('Wait for the current task to finish before changing providers.', 'fail'); return; }
+  cfg.mode = document.getElementById('ai-mode').value;
+  cfg.compatible = { key: document.getElementById('compatible-key').value.trim(), url: document.getElementById('compatible-url').value.trim(), model: document.getElementById('compatible-model').value.trim() };
   cfg.or.key   = document.getElementById('or-key').value.trim();
   cfg.or.model = document.getElementById('or-model').value === 'custom'
     ? document.getElementById('or-custom-model').value.trim()
@@ -1473,6 +1501,7 @@ function saveSettings() {
 
   try {
     storage.setItem('shayntech_cfg', JSON.stringify(cfg));
+    refreshUsagePill();
     showNotif('Settings saved!', 'success');
   } catch(e) {
     showNotif('Settings saved (memory only — storage blocked by browser)', 'success');
@@ -1485,6 +1514,10 @@ function loadSettings() {
     if (!saved) return;
     const s = JSON.parse(saved);
     Object.assign(cfg, s);
+    document.getElementById('ai-mode').value = cfg.mode || 'hosted';
+    document.getElementById('compatible-key').value = cfg.compatible.key || '';
+    document.getElementById('compatible-url').value = cfg.compatible.url || 'https://api.deepseek.com';
+    document.getElementById('compatible-model').value = cfg.compatible.model || 'deepseek-flash';
     document.getElementById('or-key').value   = cfg.or.key || '';
     document.getElementById('gm-key').value   = cfg.gm?.key || '';
     document.getElementById('gq-key').value   = cfg.gq?.key || '';
@@ -1526,14 +1559,21 @@ document.getElementById('save-settings-btn').addEventListener('click', saveSetti
 
 // ── Test connection ──
 document.getElementById('test-conn-btn').addEventListener('click', async () => {
+  if (agentRunning) return;
   saveSettings();
   const btn = document.getElementById('test-conn-btn');
   btn.textContent = '⏳ Testing...';
   btn.disabled = true;
   try {
+    if (cfg.mode !== 'own') {
+      const response = await fetch(PRO_BACKEND_URL + '/api/auth/me', { headers: { Authorization: 'Bearer ' + storage.getItem('pro_token') } });
+      if (!response.ok) throw new Error('Sign in to use hosted AI.');
+      showNotif('Account connected. No trial prompt used; AI will be checked when you submit a task.', 'success');
+    } else {
     const result = await callAI([{ role: 'user', content: 'Reply with only: OK' }]);
     const resultText = typeof result === 'string' ? result : (result.content || JSON.stringify(result));
     showNotif('✅ Connection OK: ' + resultText.slice(0, 40), 'success');
+    }
   } catch(e) {
     showNotif('❌ ' + (e.message || 'Connection failed'), 'fail');
   }
@@ -1804,6 +1844,7 @@ async function handleSend() {
     return;
   }
 
+  activePromptId = crypto.randomUUID();
   inputEl.value = '';
   inputEl.style.height = 'auto';
   addMessage('user', text + (attachedFileName ? '\n📎 ' + attachedFileName : ''));
@@ -1852,7 +1893,8 @@ setTimeout(function() {
 }, 2000);
 
 function hasValidConfig() {
-  // PRO version: valid if user is logged in (has token)
+  if (cfg.mode === 'own') return true;
+  // Hosted prompts require an authenticated account.
   var token = storage.getItem('pro_token');
   if (!token) {
     showLoginScreen();
@@ -2637,7 +2679,30 @@ function normalizeMessages(messages) {
 var PRO_BACKEND_URL = window.location.origin;
 
 async function callAI(messages, tools) {
-  return callProBackend(messages, tools);
+  if (cfg.mode !== 'own') return callProBackend(messages, tools);
+  const providers = { openrouter: callOpenRouter, gemini: callGemini, groq: callGroq, claude: callClaude, qwen: callQwen, ollama: callOllama, compatible: callCompatible };
+  const call = providers[cfg.provider];
+  if (!call) throw new Error('Choose a supported provider in Settings.');
+  return call(normalizeMessages(messages), tools);
+}
+async function callCompatible(messages, tools) {
+  const c = cfg.compatible;
+  if (!c.key || !c.model) throw new Error('Enter your provider key and model in Settings.');
+  const url = new URL(c.url);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Use the official HTTPS API base URL without credentials, query or fragment.');
+  const endpoint = url.href.replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
+  const body = { model: c.model, messages, max_tokens: 4096, stream: false };
+  if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  if (url.hostname === 'api.deepseek.com') body.thinking = { type: 'disabled' };
+  const controller = new AbortController(); activeAIRequest = controller;
+  const timer = setTimeout(() => controller.abort(), 120000);
+  try {
+    const res = await fetch(endpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.key }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('Your provider rejected the request (HTTP ' + res.status + '). Check its key, credit balance, model and browser access.');
+    const data = await res.json(), choice = data.choices?.[0];
+    if (!choice || !['stop', 'tool_calls'].includes(choice.finish_reason)) throw new Error('Provider returned an incomplete or unsupported response.');
+    return normalizeMessage(choice.message);
+  } finally { clearTimeout(timer); if (activeAIRequest === controller) activeAIRequest = null; }
 }
 
 async function callProBackend(messages, tools) {
@@ -2656,6 +2721,7 @@ async function callProBackend(messages, tools) {
   }
 
   var body = {
+    prompt_id: activePromptId || crypto.randomUUID(),
     messages: normalizeMessages(messages),
     has_attachment: !!attachType,
     attachment_type: attachType
@@ -2693,7 +2759,7 @@ async function callProBackend(messages, tools) {
 
   if (!res.ok) {
     var errData2 = await res.json().catch(function() { return {}; });
-    throw new Error(errData2.error || 'Backend error ' + res.status);
+    throw new Error(errData2.message || errData2.error || 'Backend error ' + res.status);
   }
 
   var data = await res.json();
@@ -4550,7 +4616,7 @@ async function doRegister() {
     storage.setItem('pro_email', data.user.email);
     hideLoginScreen();
     refreshUsagePill();
-    addMessage('system', 'Account created! You have 50 free requests to get started. Welcome!');
+    addMessage('system', 'Account created! You have 5 free prompts to get started. Welcome!');
   } catch(e) {
     errEl.textContent = 'Connection error. Check your internet and try again.';
   }
@@ -4560,6 +4626,7 @@ async function doRegister() {
 // ── Usage pill ────────────────────────────────────────────────
 async function refreshUsagePill() {
   var token = storage.getItem('pro_token');
+  if (cfg.mode === 'own') { document.getElementById('usage-pill').textContent = 'Your API key'; return; }
   if (!token) return;
   try {
     var res = await fetch(PRO_BACKEND_URL + '/api/auth/me', {
@@ -4588,7 +4655,7 @@ async function refreshUsagePill() {
       pill.onclick = function() { showUpgradeModal(data.checkout_url); };
       if (remaining <= 0) {
         pill.className = 'danger';
-        showUpgradeModal(data.checkout_url);
+        // Show choices when the user requests another task, not during the last allowed task.
       } else if (remaining <= 10) {
         pill.className = 'warning';
       } else {
@@ -4602,7 +4669,7 @@ async function refreshUsagePill() {
 function showUpgradeModal(checkoutUrl) {
   var modal = document.getElementById('upgrade-modal');
   var link = document.getElementById('upgrade-checkout-link');
-  if (checkoutUrl && link) link.href = checkoutUrl;
+  // Upgrade requests are handled manually by Shayntech.
   if (modal) modal.classList.add('show');
 }
 

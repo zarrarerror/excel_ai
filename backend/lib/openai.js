@@ -1,8 +1,10 @@
 const fetch = require('node-fetch');
 
-const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
-const MODEL_FAST  = process.env.OPENAI_MODEL_FAST  || 'gpt-4o';
-const MODEL_HEAVY = process.env.OPENAI_MODEL_HEAVY || 'gpt-4o';
+const { providerConfig } = require('./provider');
+const hosted = providerConfig();
+const OPENAI_URL = hosted.url;
+const MODEL_FAST  = hosted.fast;
+const MODEL_HEAVY = hosted.heavy;
 const MODEL_COSTS = {
   'gpt-4o-mini': { input: 0.000150, output: 0.000600 },
   'gpt-4o':      { input: 0.002500, output: 0.010000 },
@@ -30,8 +32,8 @@ async function callOpenAI(body, retryCount = 0) {
   res = await fetch(OPENAI_URL, {
     signal: controller.signal,
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers: { 'Authorization': 'Bearer ' + hosted.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(hosted.provider === 'deepseek' ? { ...body, thinking: { type: 'disabled' } } : body)
   });
   data = await res.json();
   } catch (error) {

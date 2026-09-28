@@ -62,7 +62,7 @@ function createApp() {
   return app;
 }
 if (require.main === module) {
-  for (const name of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'OPENAI_API_KEY']) {
+  for (const name of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', require('./lib/provider').providerConfig().keyName]) {
     if (!process.env[name]) throw new Error(name + ' must be configured.');
   }
   const server = createApp().listen(process.env.PORT || 5000, '0.0.0.0', () => console.log('Excel AI Pro listening'));

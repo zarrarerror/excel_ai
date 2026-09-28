@@ -20,9 +20,9 @@ Repository: https://github.com/zarrarerror/excel_ai. Review branch: `codex/excel
 
 ## Required environment
 
-Copy `.env.example` to `.env` on the server and fill every placeholder. `DOMAIN` is a hostname, while `PUBLIC_URL` is its HTTPS origin without a trailing slash. Keep Supabase service-role and OpenAI keys on the server. `SUPABASE_ANON_KEY` is public and is used by the password recovery page.
+Copy `.env.example` to `.env` on the server and fill every placeholder. `DOMAIN` is a hostname, while `PUBLIC_URL` is its HTTPS origin without a trailing slash. Keep Supabase service-role and DeepSeek keys on the server. See HERMES_FIVE_PROMPT_HANDOFF.md for the current access model. `SUPABASE_ANON_KEY` is public and is used by the password recovery page.
 
-The supplied model defaults preserve the existing `gpt-4o` configuration. Check model access in your OpenAI account before launch. Cost accounting retains historical estimates for the existing models; it is not an invoice reconciliation system.
+Hosted mode defaults to DeepSeek (`AI_PROVIDER=deepseek`, `DEEPSEEK_API_KEY`, `AI_MODEL_FAST`, `AI_MODEL_HEAVY`). OpenAI credentials are not required in this mode. Token counts are recorded; costs for models without configured rates are unavailable (legacy accounting writes zero), not evidence of free usage.
 
 ## Database migration (required before app startup)
 
@@ -32,7 +32,7 @@ The supplied model defaults preserve the existing `gpt-4o` configuration. Check 
 4. Verify an authenticated ordinary user cannot update `profiles.is_pro`, usage counters, or call `consume_ai_usage`; the service role must be able to call the function.
 5. Add `https://YOUR_DOMAIN/reset-password` to Supabase Auth's allowed redirect URLs. Configure email delivery.
 
-Quota semantics: each authenticated, valid AI request accepted by the database consumes one request, including provider failures. Planning calls and agent iterations are separate requests. A provider retry within one request consumes no additional quota. The monthly Pro period resets at the start of the UTC calendar month. Missing migrations fail closed with HTTP 503.
+Quota semantics: five lifetime trial prompts per account. Apply both dated migrations in order. A prompt ID groups planning and agent iterations, bounded to 41 calls and two hours. Accepted tasks count even if cancelled or the provider fails. Own-key requests bypass hosted quota. The monthly Pro period resets at the start of the UTC calendar month. Missing migrations fail closed with HTTP 503.
 
 ## Build and deploy
 
@@ -50,7 +50,7 @@ docker compose logs --tail=100 app
 
 The image runs tests during the build, uses an unprivileged Node user, exposes the app only to the internal Docker network, and includes a health check. Caddy obtains HTTPS certificates. Keep its data volumes across upgrades.
 
-If the server already has Nginx, Traefik or Caddy occupying 80/443, integrate the app with that proxy instead of starting a second public proxy. Route the entire hostname to port 5000, preserve authorization headers, allow 2 MB request bodies, and allow at least 120 seconds for AI requests. Configure `TRUST_PROXY_HOPS` to match the real proxy topology. Do not expose the backend directly when trusting proxy headers. The supplied in-memory rate limiter assumes one app replica; use a shared edge limiter before scaling replicas.
+If the server already has Nginx, Traefik or Caddy occupying 80/443, integrate the app with that proxy instead of starting a second public proxy. On this server route the entire hostname to 127.0.0.1:5020 (container port 5000); host port 5000 belongs to another app. preserve authorization headers, allow 2 MB request bodies, and allow at least 120 seconds for AI requests. Configure `TRUST_PROXY_HOPS` to match the real proxy topology. Do not expose the backend directly when trusting proxy headers. The supplied in-memory rate limiter assumes one app replica; use a shared edge limiter before scaling replicas.
 
 Do not add `X-Frame-Options: SAMEORIGIN` to the taskpane: Excel web embeds it. Server liveness is available at `/api/health`; this endpoint does not prove database or AI credentials work.
 
@@ -88,7 +88,7 @@ Verification performed locally: Node syntax checks, unit/HTTP/Office-double regr
 - Safeguards reduce errors but cannot guarantee zero hallucinations or validate every natural-language assertion.
 - The existing bearer-token browser-storage login remains; a full session-management redesign is outside this upgrade. Registration also retains the existing immediate email confirmation behavior. Enable verified sign-up before a public paid launch.
 - Browser libraries still load from external CDNs and require network availability; backend `npm audit` does not cover those script assets. Review and update PDF/XLSX parsing dependencies before processing untrusted public uploads at scale.
-- Payment integration is unfinished. Webhooks return 501 instead of claiming success. Do not enable paid checkout until signature verification and subscription lifecycle handling are implemented.
+- No online payments: users contact hello@shayntech.com or WhatsApp +966 53 744 3627 for USD plans. The protected admin page activates/removes Pro after offline payment. Expiration and renewals are manual. Webhooks remain disabled with HTTP 501.
 - Undo is session-local and covers values/formulas/cleaning only. Keep workbook backups for destructive operations. Coauthor edits can invalidate an undo snapshot.
 
 Rollback: retain the previous application image and database backup. Prefer rolling back the app image only; do not restore the insecure profile update policy. Do not use `docker compose down -v` for a routine rollback.
