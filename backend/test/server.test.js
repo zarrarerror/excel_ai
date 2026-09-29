@@ -40,3 +40,26 @@ test('invalid JSON and absent auth return actionable errors', async () => {
 test('unconfigured payments do not return a false success', async () => {
   assert.equal((await fetch(origin + '/api/webhook', { method: 'POST' })).status, 501);
 });
+
+test('account refreshes cannot exhaust sign-in limits, and credential attempts stay limited', async () => {
+  const isolated = createApp().listen(0, '127.0.0.1');
+  await new Promise(resolve => isolated.once('listening', resolve));
+  const base = 'http://127.0.0.1:' + isolated.address().port;
+  const action = route => fetch(base + '/api/auth/' + route, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  });
+  try {
+    // Simulate a long agent task's quota refreshes without contacting Supabase.
+    for (let i = 0; i < 41; i++) assert.equal((await fetch(base + '/api/auth/me')).status, 401);
+    for (let i = 0; i < 30; i++) assert.equal((await action(i % 2 ? 'register' : 'login')).status, 400);
+    const blocked = await action('register');
+    assert.equal(blocked.status, 429);
+    const retry = Number(blocked.headers.get('retry-after'));
+    assert.ok(retry > 0 && retry <= 900);
+    assert.equal((await blocked.json()).retry_after, retry);
+    assert.equal((await fetch(base + '/api/auth/me')).status, 401);
+    // The independent read limit remains enforced as well.
+    for (let i = 42; i < 120; i++) assert.equal((await fetch(base + '/api/auth/me')).status, 401);
+    assert.equal((await fetch(base + '/api/auth/me')).status, 429);
+  } finally { await new Promise(resolve => isolated.close(resolve)); }
+});

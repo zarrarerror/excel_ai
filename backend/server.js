@@ -35,7 +35,11 @@ function createApp() {
     if (['POST', 'PUT', 'PATCH'].includes(req.method) && (!req.body || typeof req.body !== 'object' || Array.isArray(req.body))) return res.status(400).json({ error: 'A JSON object is required.' });
     next();
   });
-  app.use('/api/auth', rateLimit(30, 15 * 60 * 1000));
+  // Usage refreshes happen during AI tasks; they must not exhaust the
+  // credential-attempt budget and lock users out of sign-in or registration.
+  const accountReadLimit = rateLimit(120, 60 * 1000);
+  const authActionLimit = rateLimit(30, 15 * 60 * 1000);
+  app.use('/api/auth', (req, res, next) => (req.method === 'GET' ? accountReadLimit : authActionLimit)(req, res, next));
   app.use('/api/admin', rateLimit(30, 60 * 1000));
   app.use('/api/chat', rateLimit(120, 60 * 1000));
   app.use('/api/auth', asyncRouter(require('./routes/auth')));

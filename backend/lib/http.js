@@ -21,8 +21,9 @@ function rateLimit(limit, windowMs) {
     let entry = clients.get(key);
     if (!entry || entry.until <= now) { entry = { count: 0, until: now + windowMs }; clients.set(key, entry); }
     if (++entry.count > limit) {
-      res.set('Retry-After', String(Math.ceil((entry.until - now) / 1000)));
-      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+      const retryAfter = Math.max(1, Math.ceil((entry.until - now) / 1000));
+      res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Too many requests. Try again in ' + retryAfter + ' seconds.', retry_after: retryAfter });
     }
     next();
   };
