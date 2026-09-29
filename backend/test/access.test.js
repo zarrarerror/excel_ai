@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { providerConfig } = require('../lib/provider');
+const ModelRouting = require('../../addin/model-routing');
 test('DeepSeek hosted mode uses only the DeepSeek secret; OpenAI remains optional', () => {
   const d = providerConfig({ DEEPSEEK_API_KEY: 'deepseek-test', OPENAI_API_KEY: 'other-test' });
   assert.equal(d.key, 'deepseek-test');
@@ -15,7 +16,8 @@ const dispatch = html.slice(html.indexOf('async function callAI('), html.indexOf
 test('own-key mode never calls the hosted quota backend, for every supported provider', async () => {
   for (const provider of ['openrouter', 'gemini', 'groq', 'claude', 'qwen', 'ollama', 'compatible']) {
     let own = 0, hosted = 0;
-    const c = { cfg: { mode: 'own', provider }, normalizeMessages: m => m, callProBackend: () => { hosted++; } };
+    const configKey = ModelRouting.providers[provider][1];
+    const c = { cfg: { mode: 'own', provider, [configKey]: { key: 'test', model: 'test-model', url: 'http://localhost:11434' } }, ModelRouting, activeTaskRoute: null, normalizeMessages: m => m, callProBackend: () => { hosted++; } };
     for (const name of ['OpenRouter', 'Gemini', 'Groq', 'Claude', 'Qwen', 'Ollama', 'Compatible']) c['call' + name] = async () => { own++; return { content: 'OK' }; };
     vm.createContext(c); vm.runInContext(dispatch, c);
     assert.equal((await c.callAI([{ role: 'user', content: 'hello' }], [])).content, 'OK');

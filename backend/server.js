@@ -50,6 +50,9 @@ function createApp() {
   app.get(['/', '/index.html', '/taskpane.html'], (req, res) => res.sendFile(path.join(ROOT, 'addin', 'taskpane.html')));
   app.get('/agent-safety.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'agent-safety.js')));
   app.get('/agent-runtime.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'agent-runtime.js')));
+  app.get('/model-routing.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'model-routing.js')));
+  app.get('/routing-settings.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'routing-settings.js')));
+  app.get('/gemini-protocol.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'gemini-protocol.js')));
   app.get('/manifest.xml', (req, res) => {
     const template = fs.readFileSync(path.join(ROOT, 'addin', 'manifest.xml'), 'utf8');
     res.type('application/xml').send(template.replaceAll('https://aiexcel.replit.app', origin));

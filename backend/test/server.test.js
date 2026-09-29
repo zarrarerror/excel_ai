@@ -13,7 +13,7 @@ test.before(async () => {
 });
 test.after(() => new Promise(resolve => server.close(resolve)));
 test('serves actual add-in assets and rewrites the manifest to the server domain', async () => {
-  for (const route of ['/', '/taskpane.html', '/agent-safety.js', '/agent-runtime.js', '/icon.png', '/reset-password', '/admin']) assert.equal((await fetch(origin + route)).status, 200);
+  for (const route of ['/', '/taskpane.html', '/agent-safety.js', '/agent-runtime.js', '/model-routing.js', '/routing-settings.js', '/gemini-protocol.js', '/icon.png', '/reset-password', '/admin']) assert.equal((await fetch(origin + route)).status, 200);
   const xml = await (await fetch(origin + '/manifest.xml')).text();
   assert.match(xml, /https:\/\/excel.example.com\/taskpane.html/);
   assert.doesNotMatch(xml, /replit.app/);

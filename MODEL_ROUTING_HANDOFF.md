@@ -1,0 +1,19 @@
+# Personal model routing
+
+Users can keep the existing Shayntech hosted API or switch to their own keys and enable Settings > Model routing. Existing saved settings load with routing off unless explicitly enabled. No database migration, server credentials or manifest changes are required.
+
+Each device can save a default provider plus four routes: general, bulk data, formulas, and reasoning/coding. Each route selects a provider and an optional exact model ID; blank means the provider's saved model. Provider tabs edit credentials without silently changing the default. Gemini and Groq model IDs are editable so users can select active models available to their accounts. Existing saved model IDs are preserved.
+
+Example setup: bulk data -> Gemini; formulas -> Groq; reasoning/coding -> OpenRouter. Enter the respective keys in the provider tabs, choose active model IDs, then Save Settings. Test Connection sends one small text request per distinct configured provider/model (provider billing may apply); it does not verify Excel tools or consume hosted trial prompts.
+
+Auto uses only the user's instruction, with priority: explicit chat route override, Formula mode, coding/reasoning terms, formula terms, bulk/data terms, general. It is a deterministic heuristic and users can override it with the Next task selector. The override resets to Auto after submission. A task uses one immutable provider/model/key snapshot through planning, execution and repair; routes do not switch providers halfway through a task. For a workflow that needs Gemini analysis followed by Groq formulas, submit those as separate tasks.
+
+Hosted requests still require an authenticated account and use the existing five-prompt trial / paid-plan rules. Own-key requests go directly to their configured provider, without the hosted API or quota. Missing keys/models stop before workbook changes, and failures never silently send data to another provider. Existing workbook snapshot, bounded range-read and iteration limits remain in effect; selecting Gemini does not mean unlimited rows are sent.
+
+Provider reliability: Gemini histories now retain original response parts/thought signatures and pair function responses with the original name and ID; parallel tool results are grouped. Image content is preserved. Gemini/OpenRouter/Groq reject incomplete output before tool execution, support cancellation/timeouts, and show provider-specific HTTP hints. OpenRouter no longer retries unsupported tool requests as text-only completions. API keys are not placed in Gemini request URLs.
+
+Implementation references: Google's [function-calling guide](https://ai.google.dev/gemini-api/docs/generate-content/function-calling?hl=en), [thought signatures](https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures), and [FunctionDeclaration JSON schema](https://ai.google.dev/api/generate-content#FunctionDeclaration). New installs use the documented [Gemini 3.8 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash/) default for the Gemini tab; the hosted provider remains unchanged.
+
+Verification: 48 Node tests pass, including prior safety/quota checks, default preservation, classification/override behavior, route snapshots, key isolation against actual adapter code with mocked HTTP, fail-without-fallback behavior, Gemini continuation metadata and rejection of truncated responses. Browser checks on a local test instance with dummy keys verified enable/disable, missing-key validation, saving, and persistence after reload. Live Gemini/Groq/OpenRouter requests with customer credentials and real Mac/Windows Excel runs have not been performed for this feature.
+
+Deployment: build and restart only the existing app service, preserving the 127.0.0.1:5020 compose override and host nginx. Close/reopen the add-in to load the new Settings controls; installations already on excel-ai.shayntech.com keep their current manifest.

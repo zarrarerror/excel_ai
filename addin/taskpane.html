@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <script src="/agent-safety.js?v=formula-recovery-1"></script>
+<script src="/model-routing.js?v=task-routing-1"></script>
+<script src="/routing-settings.js?v=task-routing-1"></script>
+<script src="/gemini-protocol.js?v=task-routing-1"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shayntech Excel AI Pro</title>
@@ -389,7 +392,7 @@
     color: var(--muted);
     font-weight: 500;
   }
-  .field input, .field select, .field textarea {
+  .field input, .field select, .field textarea, #ai-mode, #default-provider, #task-route {
     background: var(--bg3);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -403,7 +406,7 @@
   }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
   .field input[type="password"] { letter-spacing: 0.05em; }
-  .field select option { background: var(--bg2); }
+  .field select option, #ai-mode option, #default-provider option, #task-route option { background: var(--bg2); }
   .field .hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
   .provider-tabs {
@@ -914,6 +917,13 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
         <button class="mode-btn" id="mode-formula" onclick="setMode('formula')">𝑓 Formula</button>
       </div>
     </div>
+    <div id="task-route-row" style="display:none;align-items:center;gap:8px;padding:6px 0;">
+      <label for="task-route">Next task</label>
+      <select id="task-route" style="flex:1;min-width:0;" aria-label="Model route for next task">
+        <option value="auto">Auto — choose by task</option><option value="general">General</option>
+        <option value="bulk">Bulk data / many rows</option><option value="formula">Formulas</option><option value="reasoning">Reasoning / coding</option>
+      </select>
+    </div>
     <div class="formula-bar" id="formula-bar">
       <span class="formula-bar-label">𝑓x</span>
       <span class="formula-bar-value" id="formula-bar-value">—</span>
@@ -945,6 +955,12 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
       <label for="ai-mode">Choose how to pay for AI</label>
       <select id="ai-mode"><option value="hosted">Shayntech — 5 trial prompts or your paid plan</option><option value="own">Use my own API key</option></select>
       <p class="about-desc">The trial is once per account. Each submitted task includes up to 41 AI calls over two hours. Started tasks count even if cancelled or the AI provider fails. Your own-key requests do not use your trial or plan allowance; your provider may charge you.</p>
+      <label for="default-provider">My default provider (own-key mode)</label><select id="default-provider"></select>
+      <div class="settings-title">Model routing</div>
+      <label style="display:flex;gap:8px;align-items:center;"><input id="routing-enabled" type="checkbox" style="width:auto;"> Choose a provider and model by task</label>
+      <p class="about-desc" id="routing-help"></p>
+      <fieldset id="routing-rules" style="border:0;padding:0;margin:0;min-width:0;" disabled></fieldset>
+      <p class="about-desc">Auto uses your instruction: coding/reasoning first, then formulas, then bulk/data tasks, otherwise general. Use the chat selector to override it. One provider handles the whole task, including planning and repairs. Missing keys or provider errors stop the task; no automatic provider fallback. Bulk routing keeps the existing workbook read limits.</p>
       <div class="settings-title">Your own AI provider</div>
       <div class="provider-tabs">
         <div class="ptab active" data-provider="openrouter">OpenRouter</div>
@@ -1002,12 +1018,8 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
         </div>
         <div class="field">
           <label>Model</label>
-          <select id="gm-model">
-            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Free, Fast)</option>
-            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Free, Fastest)</option>
-            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Free tier)</option>
-            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Free tier)</option>
-          </select>
+          <input id="gm-model" type="text" value="gemini-3.8-flash" placeholder="Enter an active Gemini model ID" maxlength="200" />
+          <div class="hint">Enter the exact active model ID from Google AI Studio. Agent tasks require function calling support.</div>
         </div>
       </div>
     </div>
@@ -1023,13 +1035,8 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
         </div>
         <div class="field">
           <label>Model</label>
-          <select id="gq-model">
-            <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Free)</option>
-            <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Free, Fastest)</option>
-            <option value="mixtral-8x7b-32768">Mixtral 8x7B (Free)</option>
-            <option value="gemma2-9b-it">Gemma 2 9B (Free)</option>
-            <option value="llama3-groq-70b-8192-tool-use-preview">Llama 3 70B Tool Use (Free)</option>
-          </select>
+          <input id="gq-model" type="text" value="llama-3.3-70b-versatile" placeholder="Enter an active Groq model ID" maxlength="200" />
+          <div class="hint">Use a model available to your Groq account. Availability, context limits and pricing depend on the provider.</div>
         </div>
       </div>
     </div>
@@ -1304,6 +1311,7 @@ Example commands:<br/>
 function chooseOwnKey() {
   closeUpgradeModal(); hideLoginScreen();
   document.getElementById('ai-mode').value = 'own';
+  RoutingSettings.refresh();
   document.querySelector('.tab[data-tab="settings"]').click();
   showNotif('Choose your provider, enter your key and save settings.', 'success');
 }
@@ -1357,13 +1365,16 @@ let stopRequested = false;
 let attachedFileContent = null;
 let attachedFileName = null;
 let activePromptId = null;
+let activeTaskRoute = null;
+let testingConnections = false;
 
 const cfg = {
   mode: 'hosted',
   compatible: { key: '', url: 'https://api.deepseek.com', model: 'deepseek-flash' },
   provider: 'openrouter',
+  routing: ModelRouting.normalize(),
   or: { key: '', model: 'deepseek/deepseek-r1:free' },
-  gm: { key: '', model: 'gemini-2.0-flash' },
+  gm: { key: '', model: 'gemini-3.8-flash' },
   gq: { key: '', model: 'llama-3.3-70b-versatile' },
   cl: { key: '', model: 'claude-haiku-4-5' },
   qw: { key: '', model: 'qwen-turbo', host: '' },
@@ -1401,6 +1412,7 @@ function _onBothReady() {
     } catch(e) { officeReady = false; }
     setStatus('ready');
     loadSettings();
+    RoutingSettings.render(cfg);
     loadSavedTheme();
     // PRO: check login
     // Detect Supabase error hash (e.g. expired reset link redirected here)
@@ -1460,12 +1472,12 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ── Provider tabs ──
 document.querySelectorAll('.ptab').forEach(pt => {
   pt.addEventListener('click', () => {
-    if (agentRunning) return;
+    if (agentRunning || testingConnections) return;
     document.querySelectorAll('.ptab').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.provider-config').forEach(c => c.classList.remove('active'));
     pt.classList.add('active');
     document.getElementById('cfg-' + pt.dataset.provider).classList.add('active');
-    if (!agentRunning) cfg.provider = pt.dataset.provider;
+    // Browsing provider keys must not silently change the saved default route.
   });
 });
 
@@ -1476,8 +1488,11 @@ document.getElementById('or-model').addEventListener('change', function() {
 
 // ── Settings: save & load ──
 function saveSettings() {
-  if (agentRunning) { showNotif('Wait for the current task to finish before changing providers.', 'fail'); return; }
+  if (agentRunning || testingConnections) { showNotif('Wait for the current task or connection test to finish before changing providers.', 'fail'); return false; }
+  const previous = JSON.parse(JSON.stringify(cfg));
   cfg.mode = document.getElementById('ai-mode').value;
+  cfg.provider = document.getElementById('default-provider').value;
+  cfg.routing = RoutingSettings.read();
   cfg.compatible = { key: document.getElementById('compatible-key').value.trim(), url: document.getElementById('compatible-url').value.trim(), model: document.getElementById('compatible-model').value.trim() };
   cfg.or.key   = document.getElementById('or-key').value.trim();
   cfg.or.model = document.getElementById('or-model').value === 'custom'
@@ -1499,6 +1514,9 @@ function saveSettings() {
   cfg.ctxRows  = parseInt(document.getElementById('ctx-rows').value);
   cfg.requireApproval = document.getElementById('require-approval').checked;
 
+  try { ModelRouting.validate(cfg); }
+  catch (error) { Object.assign(cfg, previous); showNotif(error.message, 'fail'); return false; }
+
   try {
     storage.setItem('shayntech_cfg', JSON.stringify(cfg));
     refreshUsagePill();
@@ -1506,6 +1524,8 @@ function saveSettings() {
   } catch(e) {
     showNotif('Settings saved (memory only — storage blocked by browser)', 'success');
   }
+  RoutingSettings.refresh();
+  return true;
 }
 
 function loadSettings() {
@@ -1514,6 +1534,7 @@ function loadSettings() {
     if (!saved) return;
     const s = JSON.parse(saved);
     Object.assign(cfg, s);
+    cfg.routing = ModelRouting.normalize(s.routing);
     document.getElementById('ai-mode').value = cfg.mode || 'hosted';
     document.getElementById('compatible-key').value = cfg.compatible.key || '';
     document.getElementById('compatible-url').value = cfg.compatible.url || 'https://api.deepseek.com';
@@ -1560,7 +1581,8 @@ document.getElementById('save-settings-btn').addEventListener('click', saveSetti
 // ── Test connection ──
 document.getElementById('test-conn-btn').addEventListener('click', async () => {
   if (agentRunning) return;
-  saveSettings();
+  if (!saveSettings()) return;
+  testingConnections = true;
   const btn = document.getElementById('test-conn-btn');
   btn.textContent = '⏳ Testing...';
   btn.disabled = true;
@@ -1570,15 +1592,23 @@ document.getElementById('test-conn-btn').addEventListener('click', async () => {
       if (!response.ok) throw new Error('Sign in to use hosted AI.');
       showNotif('Account connected. No trial prompt used; AI will be checked when you submit a task.', 'success');
     } else {
-    const result = await callAI([{ role: 'user', content: 'Reply with only: OK' }]);
-    const resultText = typeof result === 'string' ? result : (result.content || JSON.stringify(result));
-    showNotif('✅ Connection OK: ' + resultText.slice(0, 40), 'success');
+    const seen = new Set();
+    const categories = cfg.routing.enabled ? Object.keys(ModelRouting.categories) : ['general'];
+    for (const category of categories) {
+      const route = ModelRouting.resolve(cfg, { override: category });
+      const key = route.provider + '/' + route.config.model;
+      if (seen.has(key)) continue;
+      seen.add(key); btn.textContent = 'Testing ' + ModelRouting.providers[route.provider][0] + '...';
+      await callAI([{ role: 'user', content: 'Reply with only: OK' }], [], route);
+    }
+    showNotif('Connected to ' + seen.size + ' configured model(s). Text requests passed; Excel tool support is checked during tasks.', 'success');
     }
   } catch(e) {
     showNotif('❌ ' + (e.message || 'Connection failed'), 'fail');
   }
   btn.textContent = '🔌 Test Connection';
   btn.disabled = false;
+  testingConnections = false;
 });
 
 // ── File attach ──
@@ -1833,7 +1863,7 @@ stopBtn.addEventListener('click', () => { stopRequested = true; if (activeAIRequ
 
 // ── Main send handler ──
 async function handleSend() {
-  if (agentRunning) return;
+  if (agentRunning || testingConnections) return;
   const text = inputEl.value.trim();
   if (!text) return;
   if (!officeReady) { addMessage('error', 'Open the add-in in Excel for Windows, Mac or web with ExcelApi 1.9 support. If Excel is loading, try again shortly.'); return; }
@@ -1845,9 +1875,14 @@ async function handleSend() {
   }
 
   activePromptId = crypto.randomUUID();
+  try {
+    activeTaskRoute = ModelRouting.resolve(cfg, { command: text, mode: currentMode, override: document.getElementById('task-route').value });
+  } catch (error) { addMessage('error', error.message); return; }
+  document.getElementById('task-route').value = 'auto';
   inputEl.value = '';
   inputEl.style.height = 'auto';
   addMessage('user', text + (attachedFileName ? '\n📎 ' + attachedFileName : ''));
+  if (activeTaskRoute.mode === 'own') addMessage('system', 'Using ' + activeTaskRoute.label + ' for ' + ModelRouting.categories[activeTaskRoute.category] + '.');
 
   const fileContent  = attachedFileContent;
   const fileName     = attachedFileName;
@@ -1859,7 +1894,7 @@ async function handleSend() {
 
   // Route to Formula Assistant or Agent based on mode
   if (currentMode === 'formula') {
-    await handleFormulaMode(text);
+    try { await handleFormulaMode(text); } finally { activeTaskRoute = null; }
     return;
   }
 
@@ -1874,7 +1909,7 @@ async function handleSend() {
     await runAgent(text, fileContent, fileName);
   } catch(e) {
     addMessage('error', '❌ Agent error: ' + e.message);
-  }
+  } finally { activeTaskRoute = null; }
 
   showTyping(false);
   agentRunning = false;
@@ -2678,15 +2713,15 @@ function normalizeMessages(messages) {
 // ── PRO: Backend proxy call ──
 var PRO_BACKEND_URL = window.location.origin;
 
-async function callAI(messages, tools) {
-  if (cfg.mode !== 'own') return callProBackend(messages, tools);
+async function callAI(messages, tools, selectedRoute) {
+  const route = selectedRoute || activeTaskRoute || ModelRouting.resolve(cfg);
+  if (route.mode !== 'own') return callProBackend(messages, tools);
   const providers = { openrouter: callOpenRouter, gemini: callGemini, groq: callGroq, claude: callClaude, qwen: callQwen, ollama: callOllama, compatible: callCompatible };
-  const call = providers[cfg.provider];
+  const call = providers[route.provider];
   if (!call) throw new Error('Choose a supported provider in Settings.');
-  return call(normalizeMessages(messages), tools);
+  return call(normalizeMessages(messages), tools, route.config);
 }
-async function callCompatible(messages, tools) {
-  const c = cfg.compatible;
+async function callCompatible(messages, tools, c = cfg.compatible) {
   if (!c.key || !c.model) throw new Error('Enter your provider key and model in Settings.');
   const url = new URL(c.url);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Use the official HTTPS API base URL without credentials, query or fragment.');
@@ -2769,201 +2804,60 @@ async function callProBackend(messages, tools) {
   return normalizeMessage(data.choices[0].message);
 }
 
-async function callOpenRouter(messages, tools) {
-  if (!cfg.or.key) throw new Error('OpenRouter API key is missing. Please add it in Settings.');
-  if (!cfg.or.model) throw new Error('OpenRouter model is not set. Please configure it in Settings.');
-
-  const body = {
-    model: cfg.or.model,
-    messages,
-    max_tokens: 2000,
-    temperature: 0.2,
-    stream: false
-  };
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
-  body.messages = normalizeMessages(body.messages);
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + cfg.or.key,
-      'HTTP-Referer': 'https://excelai.replit.app',
-      'X-Title': 'Shayntech AI Agent'
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    let errText = '';
-    try { errText = await res.text(); } catch(e) {}
-    if (res.status === 401) throw new Error('OpenRouter: Invalid API key (401). Please check your key in Settings.');
-    if (res.status === 402) throw new Error('OpenRouter: Account credits exhausted (402). Add credits at openrouter.ai.');
-    if (res.status === 422 || res.status === 400) {
-      // Model may not support tool calling — retry without tools
-      if (tools && tools.length > 0) {
-        const body2 = { model: cfg.or.model, messages, max_tokens: 2000, temperature: 0.2, stream: false };
-        const res2 = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + cfg.or.key,
-            'HTTP-Referer': 'https://excelai.replit.app',
-            'X-Title': 'Shayntech AI Agent'
-          },
-          body: JSON.stringify(body2)
-        });
-        if (!res2.ok) {
-          const err2 = await res2.text();
-          throw new Error(`OpenRouter ${res2.status}: ${err2.slice(0,200)}`);
-        }
-        const data2 = await res2.json();
-        if (!data2.choices || !data2.choices[0]) throw new Error('No response from OpenRouter');
-        return data2.choices[0].message;
-      }
-      throw new Error(`OpenRouter ${res.status}: Model may not support this request. Try a different model. ${errText.slice(0,150)}`);
+async function requestProviderJSON(url, headers, body, label) {
+  if (agentRunning && stopRequested) throw new Error('Stopped by user.');
+  const controller = new AbortController(); activeAIRequest = controller;
+  const timeout = setTimeout(() => controller.abort(), 120000);
+  try {
+    const response = await fetch(url, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    if (!response.ok) {
+      const hints = { 400: 'Check the model ID, tool support and request size.', 401: 'Check your API key.', 402: 'Check your provider credit balance.', 403: 'Check your key and model access.', 404: 'This model or endpoint is unavailable. Update its model ID in Settings.', 413: 'Reduce context rows or attachment size.', 429: 'Provider rate limit reached. Wait and retry, or choose another route for your next task.' };
+      throw new Error(label + ' (HTTP ' + response.status + '): ' + (hints[response.status] || 'Provider request failed. Try again later.'));
     }
-    throw new Error(`OpenRouter error ${res.status}: ${errText.slice(0,200)}`);
-  }
-
-  const data = await res.json();
-  if (!data.choices || !data.choices[0]) throw new Error('No response from OpenRouter');
-  return normalizeMessage(data.choices[0].message);
+    return await response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error(stopRequested ? 'Stopped by user.' : label + ' request timed out. Try a smaller task.');
+    if (error instanceof TypeError) throw new Error(label + ': connection failed. Check connectivity and whether the provider permits browser requests.');
+    throw error;
+  } finally { clearTimeout(timeout); if (activeAIRequest === controller) activeAIRequest = null; }
 }
 
-async function callGemini(messages, tools) {
-  if (!cfg.gm?.key) throw new Error('Gemini API key is missing. Please add it in Settings.');
-
-  messages = normalizeMessages(messages);
-
-  // Convert OpenAI message format → Gemini format
-  const systemParts = [];
-  const geminiContents = [];
-
-  for (const m of messages) {
-    if (m.role === 'system') {
-      systemParts.push({ text: m.content });
-    } else if (m.role === 'user') {
-      geminiContents.push({ role: 'user', parts: [{ text: m.content || '' }] });
-    } else if (m.role === 'assistant') {
-      const parts = [];
-      if (m.content) parts.push({ text: m.content });
-      if (m.tool_calls) {
-        for (const tc of m.tool_calls) {
-          let args = tc.function.arguments;
-          if (typeof args === 'string') try { args = JSON.parse(args); } catch(e) {}
-          parts.push({ functionCall: { name: tc.function.name, args } });
-        }
-      }
-      if (parts.length) geminiContents.push({ role: 'model', parts });
-    } else if (m.role === 'tool') {
-      // Tool result — attach to last model turn or create user turn
-      const resultPart = { functionResponse: { name: m.name || 'tool', response: { result: m.content } } };
-      geminiContents.push({ role: 'user', parts: [resultPart] });
-    }
-  }
-
-  // Build Gemini tool declarations
-  const geminiTools = (tools && tools.length > 0) ? [{
-    functionDeclarations: tools.map(t => ({
-      name: t.function.name,
-      description: t.function.description,
-      parameters: t.function.parameters
-    }))
-  }] : undefined;
-
-  const reqBody = {
-    contents: geminiContents,
-    generationConfig: { maxOutputTokens: 2048, temperature: 0.2 }
-  };
-  if (systemParts.length) reqBody.systemInstruction = { parts: systemParts };
-  if (geminiTools) reqBody.tools = geminiTools;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.gm.model}:generateContent?key=${cfg.gm.key}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(reqBody)
-  });
-
-  if (!res.ok) {
-    let errText = ''; try { errText = await res.text(); } catch(e) {}
-    if (res.status === 400) throw new Error('Gemini 400: ' + errText.slice(0, 200));
-    if (res.status === 403) throw new Error('Gemini: Invalid API key (403). Check your key at aistudio.google.com.');
-    if (res.status === 429) throw new Error('Gemini: Rate limit hit (429). Wait a moment and retry.');
-    throw new Error(`Gemini error ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  const candidate = data.candidates?.[0];
-  if (!candidate) throw new Error('No response from Gemini');
-
-  // Convert Gemini response → OpenAI message format
-  const parts = candidate.content?.parts || [];
-  let textContent = '';
-  const toolCalls = [];
-
-  for (const part of parts) {
-    if (part.text) textContent += part.text;
-    if (part.functionCall) {
-      toolCalls.push({
-        id: 'gemini_' + Math.random().toString(36).slice(2, 9),
-        type: 'function',
-        function: {
-          name: part.functionCall.name,
-          arguments: JSON.stringify(part.functionCall.args || {})
-        }
-      });
-    }
-  }
-
-  const msg = { role: 'assistant', content: textContent || null };
-  if (toolCalls.length > 0) msg.tool_calls = toolCalls;
-  return normalizeMessage(msg);
+function completeChatResponse(data, label) {
+  const choice = data.choices?.[0];
+  if (!choice?.message || !['stop', 'tool_calls'].includes(choice.finish_reason)) throw new Error(label + ' returned an incomplete or unsupported response. No actions from this response were executed.');
+  return normalizeMessage(choice.message);
 }
 
-async function callGroq(messages, tools) {
-  if (!cfg.gq?.key) throw new Error('Groq API key is missing. Please add it in Settings.');
-
-  const body = {
-    model: cfg.gq.model,
-    messages,
-    max_tokens: 2048,
-    temperature: 0.2,
-    stream: false
-  };
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = 'auto';
-  }
-
-  body.messages = normalizeMessages(body.messages);
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + cfg.gq.key
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    let errText = ''; try { errText = await res.text(); } catch(e) {}
-    if (res.status === 401) throw new Error('Groq: Invalid API key (401). Check your key at console.groq.com.');
-    if (res.status === 429) throw new Error('Groq: Rate limit (429). Wait a moment and retry.');
-    throw new Error(`Groq error ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  if (!data.choices?.[0]) throw new Error('No response from Groq');
-  return normalizeMessage(data.choices[0].message);
+async function callOpenRouter(messages, tools, providerConfig = cfg.or) {
+  if (!providerConfig.key || !providerConfig.model) throw new Error('Enter your OpenRouter key and model in Settings.');
+  const body = { model: providerConfig.model, messages, max_tokens: 4096, temperature: 0.2, stream: false };
+  if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  const data = await requestProviderJSON('https://openrouter.ai/api/v1/chat/completions', {
+    'Authorization': 'Bearer ' + providerConfig.key, 'HTTP-Referer': window.location.origin, 'X-Title': 'Shayntech AI Agent'
+  }, body, 'OpenRouter');
+  return completeChatResponse(data, 'OpenRouter');
 }
 
-async function callClaude(messages, tools) {
-  if (!cfg.cl?.key) throw new Error('Claude API key is missing. Please add it in Settings.');
+async function callGemini(messages, tools, providerConfig = cfg.gm) {
+  if (!providerConfig.key || !providerConfig.model) throw new Error('Enter your Gemini key and model in Settings.');
+  const model = providerConfig.model.replace(/^models\//, '');
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+  const data = await requestProviderJSON(url, { 'x-goog-api-key': providerConfig.key }, GeminiProtocol.request(messages, tools), 'Gemini');
+  return normalizeMessage(GeminiProtocol.response(data));
+}
+
+async function callGroq(messages, tools, providerConfig = cfg.gq) {
+  if (!providerConfig.key || !providerConfig.model) throw new Error('Enter your Groq key and model in Settings.');
+  const body = { model: providerConfig.model, messages, max_tokens: 4096, temperature: 0.2, stream: false };
+  if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  const data = await requestProviderJSON('https://api.groq.com/openai/v1/chat/completions', {
+    'Authorization': 'Bearer ' + providerConfig.key
+  }, body, 'Groq');
+  return completeChatResponse(data, 'Groq');
+}
+
+async function callClaude(messages, tools, providerConfig = cfg.cl) {
+  if (!providerConfig?.key) throw new Error('Claude API key is missing. Please add it in Settings.');
 
   messages = normalizeMessages(messages);
 
@@ -3000,7 +2894,7 @@ async function callClaude(messages, tools) {
   }
 
   const reqBody = {
-    model: cfg.cl.model,
+    model: providerConfig.model,
     max_tokens: 2048,
     messages: claudeMessages
   };
@@ -3017,7 +2911,7 @@ async function callClaude(messages, tools) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': cfg.cl.key,
+      'x-api-key': providerConfig.key,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
@@ -3057,18 +2951,18 @@ async function callClaude(messages, tools) {
   return normalizeMessage(msg);
 }
 
-async function callQwen(messages, tools) {
-  if (!cfg.qw.key) throw new Error('Qwen/Alibaba API key is missing. Please add it in Settings.');
-  if (!cfg.qw.model) throw new Error('Qwen model is not set. Please configure it in Settings.');
+async function callQwen(messages, tools, providerConfig = cfg.qw) {
+  if (!providerConfig.key) throw new Error('Qwen/Alibaba API key is missing. Please add it in Settings.');
+  if (!providerConfig.model) throw new Error('Qwen model is not set. Please configure it in Settings.');
 
   // Clean the base URL: ensure https://, strip trailing slash and accidental /chat/completions suffix
-  let qwBaseUrl = (cfg.qw.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
+  let qwBaseUrl = (providerConfig.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
   if (qwBaseUrl && !qwBaseUrl.startsWith('http')) qwBaseUrl = 'https://' + qwBaseUrl;
   qwBaseUrl = qwBaseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
 
   const qwHeaders = {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + cfg.qw.key
+    'Authorization': 'Bearer ' + providerConfig.key
   };
 
   async function doQwenRequest(includeTools) {
@@ -3105,7 +2999,7 @@ async function callQwen(messages, tools) {
     });
 
     const body = {
-      model: cfg.qw.model,
+      model: providerConfig.model,
       messages: safeMessages,
       max_tokens: 2000,
       temperature: 0.2,
@@ -3143,11 +3037,11 @@ async function callQwen(messages, tools) {
   return normalizeMessage(data.choices[0].message);
 }
 
-async function callOllama(messages, tools) {
+async function callOllama(messages, tools, providerConfig = cfg.ol) {
   // Ollama supports OpenAI-compatible endpoint
-  const url = cfg.ol.url + '/api/chat';
+  const url = providerConfig.url + '/api/chat';
   const body = {
-    model: cfg.ol.model,
+    model: providerConfig.model,
     messages,
     stream: false,
     options: { temperature: 0.2, num_predict: 2000 }
@@ -3157,15 +3051,15 @@ async function callOllama(messages, tools) {
   // We'll use the OpenAI-compatible endpoint for tool support
   const useOpenAICompat = tools && tools.length > 0;
   const finalUrl = useOpenAICompat
-    ? cfg.ol.url + '/v1/chat/completions'
+    ? providerConfig.url + '/v1/chat/completions'
     : url;
 
   const finalBody = useOpenAICompat
-    ? { model: cfg.ol.model, messages, tools, tool_choice: 'auto', temperature: 0.2 }
+    ? { model: providerConfig.model, messages, tools, tool_choice: 'auto', temperature: 0.2 }
     : body;
 
   const headers = { 'Content-Type': 'application/json' };
-  if (cfg.ol.key) headers['Authorization'] = 'Bearer ' + cfg.ol.key;
+  if (providerConfig.key) headers['Authorization'] = 'Bearer ' + providerConfig.key;
 
   if (finalBody.messages) finalBody.messages = normalizeMessages(finalBody.messages);
   const res = await fetch(finalUrl, {
