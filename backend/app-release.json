@@ -1,0 +1,8 @@
+{
+  "version": "2.2.0",
+  "notes": [
+    "Choose Gemini, Groq, OpenRouter or another configured provider by task.",
+    "Test each configured model with sample data and a two-step tool conversation.",
+    "Get update notices inside Excel and reload when your task is finished."
+  ]
+}

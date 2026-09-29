@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('node:path');
 const fs = require('node:fs');
 const { asyncRouter, rateLimit } = require('./lib/http');
+const { ASSETS, loadRelease } = require('./lib/release');
 const ROOT = path.join(__dirname, '..');
 function publicOrigin() {
   const value = process.env.PUBLIC_URL || 'http://localhost:5000';
@@ -14,6 +15,7 @@ function publicOrigin() {
 }
 function createApp() {
   const app = express();
+  const release = loadRelease(ROOT);
   const origin = publicOrigin();
   const allowed = new Set([origin, ...(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)]);
   app.disable('x-powered-by');
@@ -27,7 +29,8 @@ function createApp() {
     next();
   });
   app.use(cors({ origin: (o, cb) => cb(null, !o || allowed.has(o)), credentials: false }));
-  app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '2.1.0', service: 'Shayntech Excel AI Pro' }));
+  app.get('/api/health', (req, res) => res.json({ status: 'ok', version: release.info.version, build: release.info.build, service: 'Shayntech Excel AI Pro' }));
+  app.get('/api/version', (req, res) => res.json(release.info));
   app.get('/api/public-config', (req, res) => res.json({ supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '' }));
   app.use('/api/webhook', require('./routes/webhook'));
   app.use(express.json({ limit: '2mb' }));
@@ -47,12 +50,8 @@ function createApp() {
   app.use('/api/chat', asyncRouter(require('./routes/chat')));
   app.use('/api/admin', asyncRouter(require('./routes/admin')));
   app.use(express.static(path.join(ROOT, 'public')));
-  app.get(['/', '/index.html', '/taskpane.html'], (req, res) => res.sendFile(path.join(ROOT, 'addin', 'taskpane.html')));
-  app.get('/agent-safety.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'agent-safety.js')));
-  app.get('/agent-runtime.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'agent-runtime.js')));
-  app.get('/model-routing.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'model-routing.js')));
-  app.get('/routing-settings.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'routing-settings.js')));
-  app.get('/gemini-protocol.js', (req, res) => res.sendFile(path.join(ROOT, 'addin', 'gemini-protocol.js')));
+  app.get(['/', '/index.html', '/taskpane.html'], (req, res) => res.set('Cache-Control', 'no-store').type('html').send(release.html));
+  for (const file of ASSETS) app.get('/' + file, (req, res) => res.set('Cache-Control', 'no-store').sendFile(path.join(ROOT, 'addin', file)));
   app.get('/manifest.xml', (req, res) => {
     const template = fs.readFileSync(path.join(ROOT, 'addin', 'manifest.xml'), 'utf8');
     res.type('application/xml').send(template.replaceAll('https://aiexcel.replit.app', origin));

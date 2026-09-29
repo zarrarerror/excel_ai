@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/agent-safety.js?v=formula-recovery-1"></script>
-<script src="/model-routing.js?v=task-routing-1"></script>
-<script src="/routing-settings.js?v=task-routing-1"></script>
-<script src="/gemini-protocol.js?v=task-routing-1"></script>
+<meta name="excel-ai-build" content="__APP_BUILD__"/>
+<meta name="excel-ai-version" content="__APP_VERSION__"/>
+<script src="/agent-safety.js?v=__APP_BUILD__"></script>
+<script src="/model-routing.js?v=__APP_BUILD__"></script>
+<script src="/routing-settings.js?v=__APP_BUILD__"></script>
+<script src="/gemini-protocol.js?v=__APP_BUILD__"></script>
+<script src="/provider-checks.js?v=__APP_BUILD__"></script>
+<script src="/addin-updates.js?v=__APP_BUILD__"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Shayntech Excel AI Pro</title>
@@ -873,6 +877,13 @@
 </div>
 
 <!-- Tabs -->
+<div id="update-notice" role="status" hidden style="padding:10px 12px;background:var(--bg3);border-bottom:1px solid var(--accent);font-size:12px;flex-shrink:0;max-height:35vh;overflow:auto;">
+  <strong id="update-title">Update available</strong>
+  <p id="update-details" style="margin:6px 0;line-height:1.5;"></p>
+  <p id="update-note" style="margin:6px 0;"></p>
+  <button id="apply-update-btn" class="chat-tool-btn">Update now</button>
+  <button id="later-update-btn" class="chat-tool-btn">Later</button>
+</div>
 <div class="tabs">
   <div class="tab active" data-tab="chat">💬 Chat</div>
   <div class="tab" data-tab="settings">⚙️ Settings</div>
@@ -1184,8 +1195,11 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
 
     <div class="btn-row">
       <button class="save-btn" id="save-settings-btn">💾 Save Settings</button>
-      <button class="test-btn" id="test-conn-btn">🔌 Test Connection</button>
+      <button class="test-btn" id="test-conn-btn">🔌 Test configured models</button>
     </div>
+    <button class="chat-tool-btn" id="cancel-provider-tests" hidden>Stop model tests</button>
+    <p class="about-desc">Own-key tests send two small requests with synthetic data to each configured model. Provider charges may apply. Tests do not read or change your workbook.</p>
+    <div id="provider-test-results" role="status" aria-live="polite" class="about-desc"></div>
     <div class="btn-row" style="margin-top:8px;">
       <button class="save-btn" style="background:var(--border);color:var(--text-secondary);" onclick="logoutPro()">Sign Out</button>
     </div>
@@ -1200,8 +1214,9 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
   <div class="about-panel">
     <div>
       <div class="about-logo">Shayntech</div>
-      <div class="about-sub">AI Agent for Excel &nbsp;·&nbsp; <span class="version-badge">v1.0.0</span></div>
+      <div class="about-sub">AI Agent for Excel &nbsp;·&nbsp; <span class="version-badge">v__APP_VERSION__</span></div>
     </div>
+    <button class="test-btn" id="check-updates-btn">Check for updates</button>
     <div class="about-desc">A fully agentic AI co-pilot that reads your workbook, understands your data, and autonomously takes action — all from a single chat command.</div>
 
     <div class="settings-title">Capabilities</div>
@@ -1220,7 +1235,7 @@ Sign in to use the AI agent. Use the ✓ button to audit selected cells without 
     <div class="settings-title">Quick Start</div>
     <div class="about-desc" style="font-size:11.5px; color:var(--muted); line-height:1.8;">
 1. Go to Settings → pick your AI provider → enter API key → Save<br/>
-2. Click "Test Connection" to verify<br/>
+2. Click "Test configured models" to check sample data, a formula and tool conversation<br/>
 3. Come back to Chat → type your command<br/>
 4. Watch the agent work step by step<br/><br/>
 Example commands:<br/>
@@ -1311,6 +1326,7 @@ Example commands:<br/>
 function chooseOwnKey() {
   closeUpgradeModal(); hideLoginScreen();
   document.getElementById('ai-mode').value = 'own';
+  settingsDirty = true;
   RoutingSettings.refresh();
   document.querySelector('.tab[data-tab="settings"]').click();
   showNotif('Choose your provider, enter your key and save settings.', 'success');
@@ -1367,6 +1383,8 @@ let attachedFileName = null;
 let activePromptId = null;
 let activeTaskRoute = null;
 let testingConnections = false;
+let addinUpdater = null;
+let settingsDirty = false;
 
 const cfg = {
   mode: 'hosted',
@@ -1413,6 +1431,7 @@ function _onBothReady() {
     setStatus('ready');
     loadSettings();
     RoutingSettings.render(cfg);
+    setTimeout(startAddinUpdates, 0);
     loadSavedTheme();
     // PRO: check login
     // Detect Supabase error hash (e.g. expired reset link redirected here)
@@ -1525,6 +1544,7 @@ function saveSettings() {
     showNotif('Settings saved (memory only — storage blocked by browser)', 'success');
   }
   RoutingSettings.refresh();
+  settingsDirty = false;
   return true;
 }
 
@@ -1577,38 +1597,96 @@ function loadSettings() {
 }
 
 document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+document.getElementById('tab-settings').addEventListener('input', () => { settingsDirty = true; });
+document.getElementById('tab-settings').addEventListener('change', () => { settingsDirty = true; });
+
+function startAddinUpdates() {
+  if (addinUpdater) return;
+  try {
+    const draft = JSON.parse(sessionStorage.getItem('excel_ai_update_draft') || 'null');
+    if (draft && typeof draft.text === 'string' && !inputEl.value) {
+      inputEl.value = draft.text; if (draft.mode === 'formula' || draft.mode === 'agent') setMode(draft.mode);
+      showNotif('Add-in updated. Your unsent message was restored.', 'success');
+    }
+    sessionStorage.removeItem('excel_ai_update_draft');
+  } catch (_) { /* Office may block storage. Manual reopening still works. */ }
+  const blocked = () => agentRunning || testingConnections || document.getElementById('tpl-inserting')?.classList.contains('show') ? 'Finish or stop the current task or model test before updating.'
+    : settingsDirty ? 'Save your Settings before updating.'
+    : attachedFileContent ? 'Send or remove the attached file before updating.' : '';
+  addinUpdater = AddinUpdates.create({
+    build: document.querySelector('meta[name="excel-ai-build"]').content,
+    fetch: (...args) => fetch(...args), blocked,
+    notify: message => showNotif(message, ''),
+    render: state => {
+      document.getElementById('update-notice').hidden = !state.available;
+      if (!state.available) return;
+      document.getElementById('update-title').textContent = 'Update available · v' + state.available.version;
+      document.getElementById('update-details').textContent = state.available.notes.join(' ');
+      document.getElementById('update-note').textContent = state.blocked || ('Reloads the add-in; workbook contents and saved settings are kept.' + (undoStack.length ? ' The add-in’s current Undo history will clear.' : ''));
+      document.getElementById('apply-update-btn').disabled = Boolean(state.blocked);
+    },
+    saveDraft: () => {
+      try {
+        localStorage.setItem('shayntech_cfg', JSON.stringify(cfg));
+        for (const key of ['pro_token', 'pro_email']) { const value = storage.getItem(key); if (value) localStorage.setItem(key, value); }
+        sessionStorage.setItem('excel_ai_update_draft', JSON.stringify({ text: inputEl.value, mode: currentMode }));
+        return true;
+      } catch (_) { return false; }
+    },
+    navigate: build => { const url = new URL(window.location.href); url.searchParams.set('_app_build', build); url.hash = ''; window.location.replace(url.href); }
+  });
+  document.getElementById('apply-update-btn').onclick = () => addinUpdater.update();
+  document.getElementById('later-update-btn').onclick = () => addinUpdater.dismiss();
+  document.getElementById('check-updates-btn').onclick = () => addinUpdater.check(true);
+  addinUpdater.check();
+  setInterval(() => { if (!document.hidden) addinUpdater.check(); }, 60000);
+  setInterval(() => addinUpdater.render(), 2000);
+  window.addEventListener('focus', () => addinUpdater.check());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) addinUpdater.check(); });
+}
 
 // ── Test connection ──
 document.getElementById('test-conn-btn').addEventListener('click', async () => {
   if (agentRunning) return;
   if (!saveSettings()) return;
   testingConnections = true;
+  stopRequested = false;
   const btn = document.getElementById('test-conn-btn');
+  const results = document.getElementById('provider-test-results'); results.replaceChildren();
+  const cancel = document.getElementById('cancel-provider-tests'); cancel.hidden = false;
+  cancel.onclick = () => { stopRequested = true; if (activeAIRequest) activeAIRequest.abort(); };
   btn.textContent = '⏳ Testing...';
   btn.disabled = true;
   try {
     if (cfg.mode !== 'own') {
       const response = await fetch(PRO_BACKEND_URL + '/api/auth/me', { headers: { Authorization: 'Bearer ' + storage.getItem('pro_token') } });
       if (!response.ok) throw new Error('Sign in to use hosted AI.');
-      showNotif('Account connected. No trial prompt used; AI will be checked when you submit a task.', 'success');
+      results.textContent = 'Hosted account connected. No trial prompt used. This account check does not test the hosted AI model.';
     } else {
     const seen = new Set();
     const categories = cfg.routing.enabled ? Object.keys(ModelRouting.categories) : ['general'];
     for (const category of categories) {
+      if (stopRequested) break;
       const route = ModelRouting.resolve(cfg, { override: category });
       const key = route.provider + '/' + route.config.model;
       if (seen.has(key)) continue;
       seen.add(key); btn.textContent = 'Testing ' + ModelRouting.providers[route.provider][0] + '...';
-      await callAI([{ role: 'user', content: 'Reply with only: OK' }], [], route);
+      const row = document.createElement('p'); row.textContent = route.label + ': testing…'; results.appendChild(row);
+      try {
+        await ProviderChecks.run(callAI, route, () => stopRequested);
+        row.textContent = route.label + ': passed sample total, formula, tool arguments and two-step continuation.';
+      } catch (error) { row.textContent = route.label + ': ' + error.message; }
     }
-    showNotif('Connected to ' + seen.size + ' configured model(s). Text requests passed; Excel tool support is checked during tasks.', 'success');
+    const note = document.createElement('p'); note.textContent = (stopRequested ? 'Tests stopped. ' : 'Tests finished. ') + 'Results apply to these sample requests only; workbook tasks and larger inputs still need testing.'; results.appendChild(note);
     }
   } catch(e) {
+    results.textContent = e.message || 'Connection failed';
     showNotif('❌ ' + (e.message || 'Connection failed'), 'fail');
   }
-  btn.textContent = '🔌 Test Connection';
+  btn.textContent = '🔌 Test configured models';
   btn.disabled = false;
   testingConnections = false;
+  cancel.hidden = true;
 });
 
 // ── File attach ──
@@ -2729,15 +2807,8 @@ async function callCompatible(messages, tools, c = cfg.compatible) {
   const body = { model: c.model, messages, max_tokens: 4096, stream: false };
   if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
   if (url.hostname === 'api.deepseek.com') body.thinking = { type: 'disabled' };
-  const controller = new AbortController(); activeAIRequest = controller;
-  const timer = setTimeout(() => controller.abort(), 120000);
-  try {
-    const res = await fetch(endpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.key }, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error('Your provider rejected the request (HTTP ' + res.status + '). Check its key, credit balance, model and browser access.');
-    const data = await res.json(), choice = data.choices?.[0];
-    if (!choice || !['stop', 'tool_calls'].includes(choice.finish_reason)) throw new Error('Provider returned an incomplete or unsupported response.');
-    return normalizeMessage(choice.message);
-  } finally { clearTimeout(timer); if (activeAIRequest === controller) activeAIRequest = null; }
+  const data = await requestProviderJSON(endpoint, { Authorization: 'Bearer ' + c.key }, body, 'Your provider');
+  return completeChatResponse(data, 'Your provider');
 }
 
 async function callProBackend(messages, tools) {
@@ -2817,7 +2888,8 @@ async function requestProviderJSON(url, headers, body, label) {
     return await response.json();
   } catch (error) {
     if (error.name === 'AbortError') throw new Error(stopRequested ? 'Stopped by user.' : label + ' request timed out. Try a smaller task.');
-    if (error instanceof TypeError) throw new Error(label + ': connection failed. Check connectivity and whether the provider permits browser requests.');
+    if (error.name === 'TypeError') throw new Error(label + ': connection failed. Check connectivity and whether the provider permits browser requests.');
+    if (error.name === 'SyntaxError') throw new Error(label + ': the service returned an invalid response. Try again later.');
     throw error;
   } finally { clearTimeout(timeout); if (activeAIRequest === controller) activeAIRequest = null; }
 }
@@ -2907,26 +2979,11 @@ async function callClaude(messages, tools, providerConfig = cfg.cl) {
     }));
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': providerConfig.key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify(reqBody)
-  });
-
-  if (!res.ok) {
-    let errText = ''; try { errText = await res.text(); } catch(e) {}
-    if (res.status === 401) throw new Error('Claude: Invalid API key (401). Check your key at console.anthropic.com.');
-    if (res.status === 529) throw new Error('Claude: API overloaded (529). Try again in a moment.');
-    throw new Error(`Claude error ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  if (!data.content) throw new Error('No response from Claude');
+  const data = await requestProviderJSON('https://api.anthropic.com/v1/messages', {
+    'x-api-key': providerConfig.key, 'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true'
+  }, reqBody, 'Claude');
+  if (!data.content || !['end_turn', 'tool_use'].includes(data.stop_reason)) throw new Error('Claude returned an incomplete or unsupported response. No actions from this response were executed.');
 
   // Convert Claude response → OpenAI message format
   let textContent = '';
@@ -2952,89 +3009,16 @@ async function callClaude(messages, tools, providerConfig = cfg.cl) {
 }
 
 async function callQwen(messages, tools, providerConfig = cfg.qw) {
-  if (!providerConfig.key) throw new Error('Qwen/Alibaba API key is missing. Please add it in Settings.');
-  if (!providerConfig.model) throw new Error('Qwen model is not set. Please configure it in Settings.');
-
-  // Clean the base URL: ensure https://, strip trailing slash and accidental /chat/completions suffix
-  let qwBaseUrl = (providerConfig.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
-  if (qwBaseUrl && !qwBaseUrl.startsWith('http')) qwBaseUrl = 'https://' + qwBaseUrl;
-  qwBaseUrl = qwBaseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
-
-  const qwHeaders = {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + providerConfig.key
-  };
-
-  async function doQwenRequest(includeTools) {
-    // Deep-clone + strictly validate every message before sending to Qwen
-    var safeMessages = messages.map(function(m) {
-      if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
-        return {
-          role: 'assistant',
-          content: m.content !== undefined ? m.content : null,
-          tool_calls: m.tool_calls.map(function(tc) {
-            var rawArgs = tc.function ? tc.function.arguments : undefined;
-            var safeArgs;
-            if (typeof rawArgs === 'string') {
-              try { JSON.parse(rawArgs); safeArgs = rawArgs; } catch(e) { safeArgs = '{}'; }
-            } else {
-              try { safeArgs = JSON.stringify(rawArgs || {}); } catch(e) { safeArgs = '{}'; }
-            }
-            return {
-              id: String(tc.id || (tc.function && tc.function.name) || 'tool_0'),
-              type: 'function',
-              function: { name: tc.function.name, arguments: safeArgs }
-            };
-          })
-        };
-      }
-      if (m.role === 'tool') {
-        return {
-          role: 'tool',
-          tool_call_id: String(m.tool_call_id || 'tool_0'),
-          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '')
-        };
-      }
-      return m;
-    });
-
-    const body = {
-      model: providerConfig.model,
-      messages: safeMessages,
-      max_tokens: 2000,
-      temperature: 0.2,
-      stream: false
-    };
-    if (includeTools && tools && tools.length > 0) {
-      body.tools = tools;
-      body.tool_choice = 'auto';
-    }
-    return fetch(qwBaseUrl + '/chat/completions', {
-      method: 'POST',
-      headers: qwHeaders,
-      body: JSON.stringify(body)
-    });
-  }
-
-  let res = await doQwenRequest(true);
-
-  // Some Qwen models (qwen-max, etc.) reject tool calling with 400 —
-  // retry without tools so the model can still respond via plain text
-  if (!res.ok && (res.status === 400 || res.status === 422) && tools && tools.length > 0) {
-    res = await doQwenRequest(false);
-  }
-
-  if (!res.ok) {
-    let errText = '';
-    try { errText = await res.text(); } catch(e) {}
-    if (res.status === 401) throw new Error('Qwen: Invalid API key (401). Check your key and endpoint. Host: ' + qwBaseUrl);
-    if (res.status === 403) throw new Error('Qwen: Access denied (403). Key may not have permission for this model.');
-    throw new Error(`Qwen error ${res.status}: ${errText.slice(0,200)}`);
-  }
-
-  const data = await res.json();
-  if (!data.choices || !data.choices[0]) throw new Error('No response from Qwen');
-  return normalizeMessage(data.choices[0].message);
+  if (!providerConfig.key || !providerConfig.model) throw new Error('Enter your Qwen key and model in Settings.');
+  let base = (providerConfig.host || 'https://dashscope.aliyuncs.com/compatible-mode/v1').trim();
+  if (!base.startsWith('http')) base = 'https://' + base;
+  const url = new URL(base);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Qwen: use an HTTPS API URL without credentials, query or fragment.');
+  const endpoint = url.href.replace(/\/+$/, '').replace(/\/chat\/completions$/, '') + '/chat/completions';
+  const body = { model: providerConfig.model, messages: normalizeMessages(messages), max_tokens: 4096, temperature: 0.2, stream: false };
+  if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
+  const data = await requestProviderJSON(endpoint, { Authorization: 'Bearer ' + providerConfig.key }, body, 'Qwen');
+  return completeChatResponse(data, 'Qwen');
 }
 
 async function callOllama(messages, tools, providerConfig = cfg.ol) {
@@ -3062,24 +3046,12 @@ async function callOllama(messages, tools, providerConfig = cfg.ol) {
   if (providerConfig.key) headers['Authorization'] = 'Bearer ' + providerConfig.key;
 
   if (finalBody.messages) finalBody.messages = normalizeMessages(finalBody.messages);
-  const res = await fetch(finalUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(finalBody)
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Ollama error ${res.status}: ${err.slice(0,200)}`);
-  }
-
-  const data = await res.json();
+  const data = await requestProviderJSON(finalUrl, headers, finalBody, 'Ollama');
 
   if (useOpenAICompat) {
-    if (!data.choices || !data.choices[0]) throw new Error('No response from Ollama');
-    return normalizeMessage(data.choices[0].message);
+    return completeChatResponse(data, 'Ollama');
   } else {
-    if (!data.message) throw new Error('No response from Ollama');
+    if (!data.message || !data.done || (data.done_reason && data.done_reason !== 'stop')) throw new Error('Ollama returned an incomplete response.');
     return normalizeMessage(data.message);
   }
 }
@@ -4620,6 +4592,6 @@ function isArabicValues(values) {
 }
 
 </script>
-<script src="/agent-runtime.js?v=formula-recovery-1"></script>
+<script src="/agent-runtime.js?v=__APP_BUILD__"></script>
 </body>
 </html>

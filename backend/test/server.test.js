@@ -25,6 +25,18 @@ test('health succeeds and public configuration never exposes the service key', a
   assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.doesNotMatch(await (await fetch(origin + '/api/public-config')).text(), /test-service-role/);
 });
+
+test('release metadata and page build agree; updater and provider checks bypass stale caches', async () => {
+  const versionResponse = await fetch(origin + '/api/version');
+  assert.equal(versionResponse.headers.get('cache-control'), 'no-store');
+  const version = await versionResponse.json(); assert.match(version.build, /^[a-f0-9]{20}$/);
+  const pane = await fetch(origin + '/taskpane.html'); const html = await pane.text();
+  assert.equal(pane.headers.get('cache-control'), 'no-store'); assert.ok(html.includes('content="' + version.build + '"'));
+  assert.ok(html.includes('v' + version.version)); assert.doesNotMatch(html, /__APP_BUILD__|__APP_VERSION__/);
+  for (const path of ['/addin-updates.js', '/provider-checks.js', '/agent-runtime.js']) {
+    const response = await fetch(origin + path); assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
 test('CORS permits configured origin and omits permission for an unknown origin', async () => {
   for (const [o, expected] of [['https://excel.example.com', 'https://excel.example.com'], ['https://attacker.example', null]]) {
     const r = await fetch(origin + '/api/health', { headers: { Origin: o } });

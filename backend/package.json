@@ -1,6 +1,6 @@
 {
   "name": "excel-ai-pro-backend",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Shayntech Excel AI Pro — backend proxy with Supabase auth and Qwen AI",
   "main": "server.js",
   "scripts": {
